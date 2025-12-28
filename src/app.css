@@ -1,0 +1,561 @@
+/* ============================================
+   MOSCAR - Node-Based Prompt Builder
+   Global Design System
+   ============================================ */
+
+/* Google Fonts Import */
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap');
+
+/* ============================================
+   CSS Custom Properties (Design Tokens)
+   ============================================ */
+:root {
+	/* Base Colors */
+	--color-bg-canvas: #121212;
+	--color-bg-ui: #222222;
+	--color-bg-elevated: #2a2a2a;
+	--color-bg-hover: #333333;
+
+	/* Text Colors */
+	--color-text-primary: #ffffff;
+	--color-text-secondary: #888888;
+	--color-text-muted: #666666;
+
+	/* Node Accent Colors (71% luminosity, 99% saturation) */
+	--color-node-product: #c9fe6e; /* Lime - Hue 85° */
+	--color-node-scene: #6efec9; /* Mint - Hue 150° */
+	--color-node-style: #c96efe; /* Purple - Hue 270° */
+	--color-node-branding: #fec26e; /* Orange - Hue 30° */
+	--color-node-lighting: #fefe6e; /* Yellow - Hue 60° */
+	--color-node-camera: #6ec9fe; /* Cyan - Hue 210° */
+	--color-node-quality: #fe6ec9; /* Pink - Hue 330° */
+	--color-node-output: #fe6e6e; /* Red - Hue 0° */
+	--color-node-refine: #6efe85; /* Green - Hue 120° */
+
+	/* Semantic Colors */
+	--color-success: #6efe85;
+	--color-error: #fe6e6e;
+	--color-warning: #fec26e;
+	--color-info: #6ec9fe;
+
+	/* Typography */
+	--font-primary: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+	--font-mono: 'IBM Plex Mono', 'Consolas', 'Monaco', monospace;
+
+	/* Font Sizes */
+	--text-xs: 11px;
+	--text-sm: 13px;
+	--text-base: 15px;
+	--text-lg: 18px;
+	--text-xl: 24px;
+	--text-2xl: 32px;
+
+	/* Font Weights */
+	--font-normal: 400;
+	--font-medium: 500;
+	--font-bold: 600;
+
+	/* Spacing */
+	--space-tiny: 4px;
+	--space-sm: 8px;
+	--space-md: 12px;
+	--space-lg: 16px;
+	--space-xl: 24px;
+	--space-2xl: 32px;
+	--space-3xl: 48px;
+
+	/* Border Radius */
+	--radius-sm: 4px;
+	--radius-md: 6px;
+	--radius-lg: 8px;
+	--radius-xl: 12px;
+	--radius-full: 9999px;
+
+	/* Shadows */
+	--shadow-subtle: 0 2px 8px rgba(0, 0, 0, 0.3);
+	--shadow-medium: 0 4px 12px rgba(0, 0, 0, 0.4);
+	--shadow-strong: 0 8px 24px rgba(0, 0, 0, 0.5);
+	--shadow-dramatic: 0 12px 40px rgba(0, 0, 0, 0.6);
+
+	/* Transitions */
+	--transition-fast: 150ms ease;
+	--transition-normal: 200ms ease;
+	--transition-slow: 300ms ease;
+	--transition-drawer: 400ms cubic-bezier(0.4, 0, 0.2, 1);
+
+	/* Z-Index Scale */
+	--z-canvas: 0;
+	--z-nodes: 10;
+	--z-connections: 5;
+	--z-ui: 100;
+	--z-dropdown: 200;
+	--z-drawer: 300;
+	--z-modal: 400;
+	--z-tooltip: 500;
+
+	/* Layout */
+	--topbar-height: 56px;
+	--node-min-width: 240px;
+	--drawer-collapsed: 0px;
+	--drawer-expanded: 40vh;
+	--drawer-fullscreen: 100vh;
+}
+
+/* ============================================
+   Base Reset & Global Styles
+   ============================================ */
+*,
+*::before,
+*::after {
+	box-sizing: border-box;
+	margin: 0;
+	padding: 0;
+}
+
+html,
+body {
+	height: 100%;
+	width: 100%;
+	overflow: hidden;
+}
+
+body {
+	font-family: var(--font-primary);
+	font-size: var(--text-base);
+	font-weight: var(--font-normal);
+	color: var(--color-text-primary);
+	background-color: var(--color-bg-canvas);
+	line-height: 1.5;
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+}
+
+/* ============================================
+   Typography Utilities
+   ============================================ */
+.font-mono {
+	font-family: var(--font-mono);
+}
+
+.text-xs {
+	font-size: var(--text-xs);
+}
+.text-sm {
+	font-size: var(--text-sm);
+}
+.text-base {
+	font-size: var(--text-base);
+}
+.text-lg {
+	font-size: var(--text-lg);
+}
+.text-xl {
+	font-size: var(--text-xl);
+}
+.text-2xl {
+	font-size: var(--text-2xl);
+}
+
+.font-normal {
+	font-weight: var(--font-normal);
+}
+.font-medium {
+	font-weight: var(--font-medium);
+}
+.font-bold {
+	font-weight: var(--font-bold);
+}
+
+.text-primary {
+	color: var(--color-text-primary);
+}
+.text-secondary {
+	color: var(--color-text-secondary);
+}
+.text-muted {
+	color: var(--color-text-muted);
+}
+
+/* ============================================
+   Form Elements
+   ============================================ */
+input,
+select,
+textarea,
+button {
+	font-family: inherit;
+	font-size: inherit;
+	color: inherit;
+	border: none;
+	outline: none;
+	background: none;
+}
+
+input[type='text'],
+input[type='number'],
+textarea,
+select {
+	width: 100%;
+	padding: var(--space-sm) var(--space-md);
+	background-color: var(--color-bg-canvas);
+	border: 1px solid var(--color-text-muted);
+	border-radius: var(--radius-md);
+	color: var(--color-text-primary);
+	transition: border-color var(--transition-fast);
+}
+
+input[type='text']:focus,
+input[type='number']:focus,
+textarea:focus,
+select:focus {
+	border-color: var(--color-node-product);
+	box-shadow: 0 0 0 2px rgba(201, 254, 110, 0.2);
+}
+
+select {
+	cursor: pointer;
+	appearance: none;
+	background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23888888' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+	background-repeat: no-repeat;
+	background-position: right 12px center;
+	padding-right: 32px;
+}
+
+select option {
+	background-color: var(--color-bg-ui);
+	color: var(--color-text-primary);
+}
+
+/* ============================================
+   Button Styles
+   ============================================ */
+.btn {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: var(--space-sm);
+	padding: var(--space-sm) var(--space-lg);
+	border-radius: var(--radius-md);
+	font-weight: var(--font-medium);
+	font-size: var(--text-sm);
+	cursor: pointer;
+	transition: all var(--transition-fast);
+	white-space: nowrap;
+}
+
+.btn-primary {
+	background-color: var(--color-node-product);
+	color: var(--color-bg-canvas);
+}
+
+.btn-primary:hover {
+	transform: scale(1.02);
+	box-shadow: 0 0 20px rgba(201, 254, 110, 0.3);
+}
+
+.btn-primary:active {
+	transform: scale(0.98);
+}
+
+.btn-secondary {
+	background-color: transparent;
+	border: 1px solid var(--color-text-muted);
+	color: var(--color-text-primary);
+}
+
+.btn-secondary:hover {
+	border-color: var(--color-node-product);
+	color: var(--color-node-product);
+}
+
+.btn-icon {
+	width: 40px;
+	height: 40px;
+	padding: 0;
+	border-radius: var(--radius-md);
+	background-color: var(--color-bg-ui);
+	border: 1px solid var(--color-text-muted);
+	color: var(--color-text-primary);
+}
+
+.btn-icon:hover {
+	border-color: var(--color-node-product);
+	color: var(--color-node-product);
+}
+
+.btn-circle {
+	width: 36px;
+	height: 36px;
+	padding: 0;
+	border-radius: var(--radius-full);
+}
+
+/* ============================================
+   Node Base Styles
+   ============================================ */
+.node-base {
+	background-color: var(--color-bg-ui);
+	border-radius: var(--radius-lg);
+	min-width: var(--node-min-width);
+	box-shadow: var(--shadow-medium);
+	transition:
+		transform var(--transition-fast),
+		box-shadow var(--transition-fast);
+}
+
+.node-base:hover {
+	transform: translateY(-2px);
+	box-shadow: var(--shadow-strong);
+}
+
+.node-base.dragging {
+	transform: scale(1.02);
+	box-shadow: var(--shadow-dramatic);
+	z-index: 100;
+}
+
+.node-base.selected {
+	box-shadow: var(--shadow-strong);
+}
+
+/* Node connection states */
+.node-disconnected {
+	border: 2px dashed;
+	opacity: 0.8;
+}
+
+.node-connected {
+	border: 2px solid;
+	opacity: 1;
+}
+
+/* Node header */
+.node-header {
+	padding: var(--space-md) var(--space-lg);
+	font-size: var(--text-lg);
+	font-weight: var(--font-medium);
+	border-bottom: 1px solid var(--color-bg-canvas);
+}
+
+/* Node content */
+.node-content {
+	padding: var(--space-lg);
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-md);
+}
+
+/* Node field */
+.node-field {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-tiny);
+}
+
+.node-field label {
+	font-size: var(--text-xs);
+	color: var(--color-text-secondary);
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
+}
+
+/* ============================================
+   Handle Styles (Connection Ports)
+   ============================================ */
+.handle {
+	width: 12px;
+	height: 12px;
+	border-radius: var(--radius-full);
+	border: 2px solid;
+	background-color: var(--color-bg-ui);
+	transition: all var(--transition-fast);
+}
+
+.handle:hover {
+	transform: scale(1.3);
+}
+
+.handle.connected {
+	background-color: currentColor;
+}
+
+/* ============================================
+   Canvas Background Pattern
+   ============================================ */
+.canvas-background {
+	background-color: var(--color-bg-canvas);
+	background-image: radial-gradient(circle, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+	background-size: 24px 24px;
+}
+
+/* ============================================
+   Scrollbar Styling
+   ============================================ */
+::-webkit-scrollbar {
+	width: 8px;
+	height: 8px;
+}
+
+::-webkit-scrollbar-track {
+	background: var(--color-bg-canvas);
+}
+
+::-webkit-scrollbar-thumb {
+	background: var(--color-text-muted);
+	border-radius: var(--radius-full);
+}
+
+::-webkit-scrollbar-thumb:hover {
+	background: var(--color-text-secondary);
+}
+
+/* ============================================
+   Animation Keyframes
+   ============================================ */
+@keyframes nodeEntrance {
+	from {
+		opacity: 0;
+		transform: scale(0.8);
+	}
+	to {
+		opacity: 1;
+		transform: scale(1);
+	}
+}
+
+@keyframes pulse {
+	0%,
+	100% {
+		box-shadow: 0 0 0 0 currentColor;
+	}
+	50% {
+		box-shadow: 0 0 20px 4px currentColor;
+	}
+}
+
+@keyframes slideUp {
+	from {
+		opacity: 0;
+		transform: translateY(20px);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+@keyframes spin {
+	from {
+		transform: rotate(0deg);
+	}
+	to {
+		transform: rotate(360deg);
+	}
+}
+
+.animate-entrance {
+	animation: nodeEntrance 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.animate-pulse {
+	animation: pulse 2s ease-in-out infinite;
+}
+
+.animate-slide-up {
+	animation: slideUp 0.3s ease-out;
+}
+
+.animate-spin {
+	animation: spin 1s linear infinite;
+}
+
+/* ============================================
+   Utility Classes
+   ============================================ */
+.sr-only {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	padding: 0;
+	margin: -1px;
+	overflow: hidden;
+	clip: rect(0, 0, 0, 0);
+	white-space: nowrap;
+	border: 0;
+}
+
+.truncate {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.flex {
+	display: flex;
+}
+.flex-col {
+	flex-direction: column;
+}
+.items-center {
+	align-items: center;
+}
+.justify-center {
+	justify-content: center;
+}
+.justify-between {
+	justify-content: space-between;
+}
+.gap-sm {
+	gap: var(--space-sm);
+}
+.gap-md {
+	gap: var(--space-md);
+}
+.gap-lg {
+	gap: var(--space-lg);
+}
+
+/* ============================================
+   XYFlow Overrides
+   ============================================ */
+.svelte-flow {
+	background-color: var(--color-bg-canvas) !important;
+}
+
+.svelte-flow__background {
+	background-color: var(--color-bg-canvas) !important;
+}
+
+.svelte-flow__edge-path {
+	stroke: var(--color-text-muted);
+	stroke-width: 2;
+}
+
+.svelte-flow__edge.selected .svelte-flow__edge-path {
+	stroke: var(--color-node-product);
+}
+
+.svelte-flow__handle {
+	width: 12px !important;
+	height: 12px !important;
+	border: 2px solid !important;
+	background-color: var(--color-bg-ui) !important;
+}
+
+.svelte-flow__handle:hover {
+	transform: scale(1.3);
+}
+
+.svelte-flow__minimap {
+	background-color: var(--color-bg-ui) !important;
+	border-radius: var(--radius-lg);
+	border: 1px solid var(--color-text-muted);
+}
+
+.svelte-flow__controls {
+	display: none; /* We use custom controls */
+}
+
+.svelte-flow__attribution {
+	display: none;
+}
