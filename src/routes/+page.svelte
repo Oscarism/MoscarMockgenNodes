@@ -12,6 +12,7 @@
 	import TopBar from '$lib/components/ui/TopBar.svelte';
 	import PromptPreview from '$lib/components/ui/PromptPreview.svelte';
 	import OutputDrawer from '$lib/components/ui/OutputDrawer.svelte';
+	import ToastContainer from '$lib/components/ui/ToastContainer.svelte';
 
 	// Track if mounted
 	let mounted = $state(false);
@@ -64,7 +65,9 @@
 				ClothingNode,
 				VariationNode,
 				PlantNode,
-				TextureNode
+				TextureNode,
+				PoseNode,
+				BackgroundNode
 			] = await Promise.all([
 				import('$lib/components/nodes/ProductNode.svelte'),
 				import('$lib/components/nodes/SceneNode.svelte'),
@@ -81,7 +84,9 @@
 				import('$lib/components/nodes/ClothingNode.svelte'),
 				import('$lib/components/nodes/VariationNode.svelte'),
 				import('$lib/components/nodes/PlantNode.svelte'),
-				import('$lib/components/nodes/TextureNode.svelte')
+				import('$lib/components/nodes/TextureNode.svelte'),
+				import('$lib/components/nodes/PoseNode.svelte'),
+				import('$lib/components/nodes/BackgroundNode.svelte')
 			]);
 
 			nodeTypes = {
@@ -100,7 +105,9 @@
 				clothing: ClothingNode.default,
 				variation: VariationNode.default,
 				plant: PlantNode.default,
-				texture: TextureNode.default
+				texture: TextureNode.default,
+				pose: PoseNode.default,
+				background: BackgroundNode.default
 			};
 
 			mounted = true;
@@ -419,6 +426,7 @@
 	{/if}
 
 	<OutputDrawer />
+	<ToastContainer />
 </div>
 
 <style>

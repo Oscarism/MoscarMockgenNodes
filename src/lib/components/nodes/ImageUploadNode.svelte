@@ -3,6 +3,8 @@
 	import type { ImageUploadNodeData, UploadedImage } from '$lib/types';
 	import { IMAGE_SLOT_COLORS } from '$lib/types';
 	import { updateNodeData } from '$lib/stores/canvas';
+	import { user, isLoggedIn } from '$lib/stores/auth';
+	import { toasts } from '$lib/stores/toasts';
 
 	interface Props {
 		id: string;
@@ -17,6 +19,28 @@
 	// Get current number of images
 	let imageCount = $derived(data.images.length);
 
+	// Upload to Supabase Storage (for logged-in users)
+	async function uploadToSupabase(file: File): Promise<string> {
+		const formData = new FormData();
+		formData.append('file', file);
+		formData.append('userId', $user?.id || '');
+
+		const response = await fetch('/api/upload', {
+			method: 'POST',
+			body: formData
+		});
+
+		if (!response.ok) {
+			const error = await response.json();
+			throw new Error(error.error || 'Upload failed');
+		}
+
+		const result = await response.json();
+		console.log('[Upload] Supabase upload success:', result.publicUrl);
+		return result.publicUrl;
+	}
+
+	// Upload to Litterbox (fallback for anonymous users)
 	async function uploadToLitterbox(file: File): Promise<string> {
 		const formData = new FormData();
 		formData.append('reqtype', 'fileupload');
@@ -33,7 +57,23 @@
 		}
 
 		const url = await response.text();
+		console.log('[Upload] Litterbox upload success:', url.trim());
 		return url.trim();
+	}
+
+	// Smart upload - uses Supabase if logged in, Litterbox if not
+	async function uploadImage(file: File): Promise<string> {
+		if ($isLoggedIn) {
+			try {
+				return await uploadToSupabase(file);
+			} catch (error) {
+				console.warn('Supabase upload failed, falling back to Litterbox:', error);
+				toasts.warning('Cloud upload failed, using temporary storage');
+				return await uploadToLitterbox(file);
+			}
+		} else {
+			return await uploadToLitterbox(file);
+		}
 	}
 
 	async function handleFileSelect(event: Event, slotIndex: number) {
@@ -74,8 +114,8 @@
 		updateNodeData(id, { images: newImages });
 
 		try {
-			// Upload to Litterbox
-			const hostedUrl = await uploadToLitterbox(file);
+			// Upload using smart upload (Supabase if logged in, Litterbox if not)
+			const hostedUrl = await uploadImage(file);
 
 			// Update with hosted URL
 			const updatedImages = [...data.images];

@@ -29,39 +29,14 @@ const MODEL_CONFIG = {
     imageUrlField: 'image_urls'
   },
   'z-image': {
-    maxPromptLength: 1000,
+    maxPromptLength: 2000,
     validRatios: ['1:1', '4:3', '3:4', '16:9', '9:16'],
     supportsQuality: false,
     supportsResolution: false,
     supportsImages: false,
     imageUrlField: 'image_urls'
   },
-  'flux-2/pro-text-to-image': {
-    maxPromptLength: 5000,
-    validRatios: ['1:1', '4:3', '3:4', '16:9', '9:16', '3:2', '2:3', 'auto'],
-    supportsQuality: false,
-    supportsResolution: true,
-    supportsImages: false,
-    imageUrlField: 'input_urls'
-  },
   'flux-2/pro-image-to-image': {
-    maxPromptLength: 5000,
-    validRatios: ['1:1', '4:3', '3:4', '16:9', '9:16', '3:2', '2:3', 'auto'],
-    supportsQuality: false,
-    supportsResolution: true,
-    supportsImages: true,
-    requiresImages: true,
-    imageUrlField: 'input_urls'
-  },
-  'flux-2/flex-text-to-image': {
-    maxPromptLength: 5000,
-    validRatios: ['1:1', '4:3', '3:4', '16:9', '9:16', '3:2', '2:3', 'auto'],
-    supportsQuality: false,
-    supportsResolution: true,
-    supportsImages: false,
-    imageUrlField: 'input_urls'
-  },
-  'flux-2/flex-image-to-image': {
     maxPromptLength: 5000,
     validRatios: ['1:1', '4:3', '3:4', '16:9', '9:16', '3:2', '2:3', 'auto'],
     supportsQuality: false,
@@ -130,9 +105,14 @@ export const POST: RequestHandler = async ({ request }) => {
       input.quality = quality || 'basic';
     }
 
-    // Add resolution only if supported (Flux models)
+    // Add resolution only if supported (Flux/Nano Banana models)
     if (config.supportsResolution) {
       input.resolution = resolution || '1K';
+    }
+
+    // Add output_format for Nano Banana Pro
+    if (selectedModel === 'nano-banana-pro') {
+      input.output_format = 'png';
     }
 
     // Add image URLs for models that support it
@@ -148,10 +128,16 @@ export const POST: RequestHandler = async ({ request }) => {
           { code: 400, msg: `${selectedModel} requires at least one image URL` },
           { status: 400 }
         );
+      } else if (selectedModel === 'nano-banana-pro') {
+        // Nano Banana needs empty array if no images
+        input.image_input = [];
       }
     }
 
     // Call API
+    console.log(`[GenerateAPI] Calling Kie AI for model: ${selectedModel}`);
+    console.log(`[GenerateAPI] Input:`, JSON.stringify(input, null, 2));
+    
     const response = await fetch(`${API_BASE_URL}/createTask`, {
       method: 'POST',
       headers: {
@@ -165,6 +151,7 @@ export const POST: RequestHandler = async ({ request }) => {
     });
 
     const data = await response.json();
+    console.log(`[GenerateAPI] Response:`, JSON.stringify(data, null, 2));
 
     // Forward the response
     return json(data);

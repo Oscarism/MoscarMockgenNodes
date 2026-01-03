@@ -1,185 +1,252 @@
 <script lang="ts">
-	import { generationState, drawerState, setDrawerMode, selectImage } from '$lib/stores/generation';
+	import { onMount } from 'svelte';
+	import {
+		generationState,
+		drawerState,
+		setDrawerMode,
+		generationHistory
+	} from '$lib/stores/generation';
+	import ImageLightbox from './ImageLightbox.svelte';
+
+	// Dynamic GSAP import (only in browser)
+	let gsap: any;
+	import MasonryGrid from './MasonryGrid.svelte';
+	import WeeklyHistoryList from './WeeklyHistoryList.svelte';
+	import type { GenerationRecord } from '$lib/types';
 
 	let mode = $derived($drawerState.mode);
-	let selectedIndex = $derived($drawerState.selectedImageIndex);
 	let images = $derived($generationState.generatedImages);
 	let isGenerating = $derived($generationState.isGenerating);
+	let history = $derived($generationHistory);
 
-	function handleImageClick(index: number) {
-		selectImage(index);
+	// Split recent 20 images vs older
+	let recentImages = $derived(images.slice(0, 20));
+	let olderRecords = $derived.by(() => {
+		// Get records that have resultUrls and exclude the most recent 20 images
+		const recentSet = new Set(recentImages);
+		return history.filter((r) => {
+			if (!r.resultUrls?.length) return false;
+			// Check if any of this record's images are NOT in recent
+			return r.resultUrls.some((url) => !recentSet.has(url));
+		});
+	});
+
+	// Create a map from image URL to model name
+	let imageModelMap = $derived.by(() => {
+		const map = new Map<string, string>();
+		for (const record of history) {
+			if (record.resultUrls && record.model) {
+				for (const url of record.resultUrls) {
+					map.set(url, record.model);
+				}
+			}
+		}
+		return map;
+	});
+
+	// Lightbox state
+	let lightboxOpen = $state(false);
+	let lightboxImage = $state('');
+	let lightboxModel = $state('');
+
+	// Helper to get friendly model name
+	function getModelLabel(modelId: string | undefined): string {
+		if (!modelId) return 'Unknown';
+		const labels: Record<string, string> = {
+			'seedream/4.5-text-to-image': 'Seedream',
+			'seedream/4.5-edit': 'Seedream Edit',
+			'z-image': 'Z-Image',
+			'flux-2/pro-image-to-image': 'Flux I2I',
+			'nano-banana-pro': 'Nano Banana'
+		};
+		return labels[modelId] || modelId;
 	}
 
-	function closeFullscreen() {
-		selectImage(null);
-		setDrawerMode('expanded');
+	function openLightbox(url: string) {
+		lightboxImage = url;
+		lightboxModel = getModelLabel(imageModelMap.get(url));
+		lightboxOpen = true;
 	}
 
-	function downloadImage(url: string, index: number) {
-		// Generate unique alphanumeric ID
+	function closeLightbox() {
+		lightboxOpen = false;
+	}
+
+	function downloadCurrentImage() {
+		if (!lightboxImage) return;
 		const uniqueId = Math.random().toString(36).substring(2, 10).toUpperCase();
 		const timestamp = Date.now().toString(36).toUpperCase();
-
 		const a = document.createElement('a');
-		a.href = url;
+		a.href = lightboxImage;
 		a.download = `MOSCAR-${uniqueId}${timestamp}.webp`;
 		a.target = '_blank';
 		document.body.appendChild(a);
 		a.click();
 		document.body.removeChild(a);
 	}
+
+	function handleHistoryImageClick(url: string, record: GenerationRecord) {
+		openLightbox(url);
+	}
+
+	// Drawer element ref for animation
+	let drawerEl: HTMLDivElement;
+
+	// Load GSAP on mount
+	onMount(async () => {
+		console.log('[OutputDrawer] Loading GSAP...');
+		const gsapModule = await import('gsap');
+		gsap = gsapModule.gsap;
+		console.log('[OutputDrawer] GSAP loaded:', gsap);
+	});
+
+	// Animate drawer open/close
+	$effect(() => {
+		console.log(
+			'[OutputDrawer] $effect triggered, mode:',
+			mode,
+			'gsap:',
+			!!gsap,
+			'drawerEl:',
+			!!drawerEl
+		);
+
+		if (!drawerEl || !gsap) {
+			console.log('[OutputDrawer] Skipping animation - missing', !drawerEl ? 'drawerEl' : 'gsap');
+			return;
+		}
+
+		console.log('[OutputDrawer] Running GSAP animation for mode:', mode);
+
+		if (mode === 'collapsed') {
+			gsap.to(drawerEl, {
+				y: '100%',
+				opacity: 0,
+				duration: 0.4,
+				ease: 'power3.inOut'
+			});
+		} else if (mode === 'expanded') {
+			gsap.to(drawerEl, {
+				y: 0,
+				opacity: 1,
+				height: '45vh',
+				duration: 0.5,
+				ease: 'power3.out'
+			});
+		} else if (mode === 'fullscreen') {
+			gsap.to(drawerEl, {
+				y: 0,
+				opacity: 1,
+				height: '100vh',
+				duration: 0.5,
+				ease: 'power3.out'
+			});
+		}
+	});
 </script>
 
-<!-- Main Drawer -->
-{#if mode !== 'collapsed'}
-	<div class="drawer" class:expanded={mode === 'expanded'} class:fullscreen={mode === 'fullscreen'}>
-		<!-- Drawer Header -->
-		<div class="drawer-header">
-			<div class="header-left">
-				<h3>Generated Mockups</h3>
-				<span class="count">{images.length} images</span>
-			</div>
-			<div class="header-right">
-				{#if mode === 'expanded'}
-					<button
-						class="header-btn"
-						onclick={() => setDrawerMode('fullscreen')}
-						aria-label="Enter fullscreen"
-					>
-						<svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-							<path
-								d="M2 6V2H6M10 2H14V6M14 10V14H10M6 14H2V10"
-								stroke="currentColor"
-								stroke-width="2"
-								stroke-linecap="round"
-							/>
-						</svg>
-					</button>
-				{:else if mode === 'fullscreen'}
-					<button
-						class="header-btn"
-						onclick={() => setDrawerMode('expanded')}
-						aria-label="Exit fullscreen"
-					>
-						<svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-							<path
-								d="M6 2V6H2M14 6H10V2M10 14V10H14M2 10H6V14"
-								stroke="currentColor"
-								stroke-width="2"
-								stroke-linecap="round"
-							/>
-						</svg>
-					</button>
-				{/if}
+<!-- Drawer Container -->
+<div
+	class="drawer"
+	class:visible={mode !== 'collapsed'}
+	class:fullscreen={mode === 'fullscreen'}
+	bind:this={drawerEl}
+>
+	<!-- Transparent Fixed Header -->
+	<header class="drawer-header">
+		<div class="header-left">
+			<h3>Generated Images</h3>
+			<span class="count">{images.length}</span>
+		</div>
+		<div class="header-right">
+			{#if mode === 'expanded'}
 				<button
-					class="header-btn close"
-					onclick={() => setDrawerMode('collapsed')}
-					aria-label="Close drawer"
+					class="header-btn"
+					onclick={() => setDrawerMode('fullscreen')}
+					aria-label="Expand to fullscreen"
 				>
 					<svg width="16" height="16" viewBox="0 0 16 16" fill="none">
 						<path
-							d="M4 12L12 4M4 4L12 12"
+							d="M2 6V2H6M10 2H14V6M14 10V14H10M6 14H2V10"
 							stroke="currentColor"
 							stroke-width="2"
 							stroke-linecap="round"
 						/>
 					</svg>
 				</button>
-			</div>
-		</div>
-
-		<!-- Drawer Content -->
-		<div class="drawer-content">
-			{#if images.length === 0}
-				<div class="empty-state">
-					{#if isGenerating}
-						<div class="generating">
-							<div class="spinner"></div>
-							<p>Generating your mockup...</p>
-						</div>
-					{:else}
-						<p>No images generated yet.</p>
-						<p class="hint">Connect nodes and click "Generate Mockup" to create images.</p>
-					{/if}
-				</div>
-			{:else if selectedIndex !== null && mode === 'fullscreen'}
-				<!-- Fullscreen Single Image View -->
-				<div class="fullscreen-view">
-					<button
-						class="nav-btn prev"
-						onclick={() => selectImage(Math.max(0, selectedIndex - 1))}
-						disabled={selectedIndex === 0}
-						aria-label="Previous image"
-					>
-						‹
-					</button>
-					<div class="fullscreen-image">
-						<img src={images[selectedIndex]} alt="Generated mockup {selectedIndex + 1}" />
-					</div>
-					<button
-						class="nav-btn next"
-						onclick={() => selectImage(Math.min(images.length - 1, selectedIndex + 1))}
-						disabled={selectedIndex === images.length - 1}
-						aria-label="Next image"
-					>
-						›
-					</button>
-					<div class="fullscreen-controls">
-						<button
-							class="control-btn"
-							onclick={() => downloadImage(images[selectedIndex], selectedIndex)}
-						>
-							<svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-								<path
-									d="M8 2V10M8 10L4 6M8 10L12 6M2 14H14"
-									stroke="currentColor"
-									stroke-width="2"
-									stroke-linecap="round"
-								/>
-							</svg>
-							Download
-						</button>
-						<button class="control-btn" onclick={closeFullscreen}> Close </button>
-					</div>
-				</div>
-			{:else}
-				<!-- Image Grid -->
-				<div class="image-grid">
-					{#each images as image, i}
-						<div
-							class="image-card"
-							onclick={() => handleImageClick(i)}
-							role="button"
-							tabindex="0"
-							onkeydown={(e) => (e.key === 'Enter' || e.key === ' ') && handleImageClick(i)}
-						>
-							<img src={image} alt="Generated mockup {i + 1}" />
-							<div class="image-overlay">
-								<button
-									class="overlay-btn"
-									onclick={(e) => {
-										e.stopPropagation();
-										downloadImage(image, i);
-									}}
-									aria-label="Download image"
-								>
-									<svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-										<path
-											d="M8 2V10M8 10L4 6M8 10L12 6M2 14H14"
-											stroke="currentColor"
-											stroke-width="2"
-											stroke-linecap="round"
-										/>
-									</svg>
-								</button>
-							</div>
-						</div>
-					{/each}
-				</div>
+			{:else if mode === 'fullscreen'}
+				<button
+					class="header-btn"
+					onclick={() => setDrawerMode('expanded')}
+					aria-label="Collapse from fullscreen"
+				>
+					<svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+						<path
+							d="M6 2V6H2M14 6H10V2M10 14V10H14M2 10H6V14"
+							stroke="currentColor"
+							stroke-width="2"
+							stroke-linecap="round"
+						/>
+					</svg>
+				</button>
 			{/if}
+			<button
+				class="header-btn close-btn"
+				onclick={() => setDrawerMode('collapsed')}
+				aria-label="Close drawer"
+			>
+				<svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+					<path
+						d="M4 12L12 4M4 4L12 12"
+						stroke="currentColor"
+						stroke-width="2"
+						stroke-linecap="round"
+					/>
+				</svg>
+			</button>
 		</div>
+	</header>
+
+	<!-- Scrollable Content -->
+	<div class="drawer-content">
+		{#if images.length === 0}
+			<div class="empty-state">
+				{#if isGenerating}
+					<div class="generating">
+						<div class="spinner"></div>
+						<p>Generating your mockup...</p>
+					</div>
+				{:else}
+					<p>No images generated yet.</p>
+					<p class="hint">Connect nodes and click "Generate" to create images.</p>
+				{/if}
+			</div>
+		{:else}
+			<!-- Recent Images - Masonry Grid -->
+			{#if recentImages.length > 0}
+				<MasonryGrid
+					images={recentImages}
+					{imageModelMap}
+					onImageClick={(url, i) => openLightbox(url)}
+				/>
+			{/if}
+
+			<!-- Older Images - Weekly List -->
+			{#if olderRecords.length > 0}
+				<WeeklyHistoryList records={olderRecords} onImageClick={handleHistoryImageClick} />
+			{/if}
+		{/if}
 	</div>
-{/if}
+</div>
+
+<!-- Image Lightbox -->
+<ImageLightbox
+	imageUrl={lightboxImage}
+	modelLabel={lightboxModel}
+	isOpen={lightboxOpen}
+	onClose={closeLightbox}
+	onDownload={downloadCurrentImage}
+/>
 
 <style>
 	.drawer {
@@ -187,101 +254,140 @@
 		bottom: 0;
 		left: 0;
 		right: 0;
-		background-color: var(--color-bg-ui);
-		border-top: 1px solid var(--color-text-muted);
-		z-index: var(--z-drawer);
+		height: 45vh;
+		background: #121212;
+		border-top: 1px solid #c9fe6e;
+		z-index: var(--z-drawer, 300);
 		display: flex;
 		flex-direction: column;
-		transition: height var(--transition-drawer);
+		transform: translateY(100%);
+		opacity: 0;
+		transition:
+			transform 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+			opacity 0.3s ease,
+			height 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+		pointer-events: none;
 	}
 
-	.drawer.expanded {
-		height: 40vh;
+	.drawer.visible {
+		transform: translateY(0);
+		opacity: 1;
+		pointer-events: auto;
 	}
 
 	.drawer.fullscreen {
 		height: 100vh;
 	}
 
+	/* Transparent pinned header */
 	.drawer-header {
-		padding: var(--space-md) var(--space-lg);
-		border-bottom: 1px solid var(--color-bg-canvas);
+		position: sticky;
+		top: 0;
+		z-index: 10;
 		display: flex;
-		justify-content: space-between;
 		align-items: center;
-		flex-shrink: 0;
+		justify-content: space-between;
+		padding: 12px 20px;
+		background: rgba(18, 18, 18, 0.85);
+		backdrop-filter: blur(12px);
+		-webkit-backdrop-filter: blur(12px);
+		border-bottom: 1px solid rgba(201, 254, 110, 0.15);
 	}
 
 	.header-left {
 		display: flex;
 		align-items: center;
-		gap: var(--space-md);
+		gap: 12px;
 	}
 
 	.header-left h3 {
-		font-size: var(--text-lg);
-		font-weight: var(--font-medium);
+		margin: 0;
+		font-size: 15px;
+		font-weight: 600;
+		color: #fff;
 	}
 
 	.count {
-		font-size: var(--text-sm);
-		color: var(--color-text-secondary);
+		padding: 3px 10px;
+		background: rgba(201, 254, 110, 0.15);
+		border-radius: 12px;
+		font-size: 12px;
+		font-weight: 600;
+		color: var(--color-node-product, #c9fe6e);
 	}
 
 	.header-right {
 		display: flex;
-		gap: var(--space-sm);
+		align-items: center;
+		gap: 8px;
 	}
 
 	.header-btn {
-		width: 32px;
-		height: 32px;
-		border-radius: var(--radius-md);
-		background-color: var(--color-bg-canvas);
-		color: var(--color-text-primary);
+		width: 36px;
+		height: 36px;
 		display: flex;
 		align-items: center;
 		justify-content: center;
+		background: rgba(255, 255, 255, 0.05);
+		border: 1px solid rgba(255, 255, 255, 0.15);
+		border-radius: 8px;
+		color: #fff;
 		cursor: pointer;
-		transition: all var(--transition-fast);
+		transition: all 0.2s ease;
 	}
 
 	.header-btn:hover {
-		background-color: var(--color-bg-hover);
+		background: rgba(201, 254, 110, 0.15);
+		border-color: var(--color-node-product, #c9fe6e);
+		color: var(--color-node-product, #c9fe6e);
 	}
 
-	.header-btn.close:hover {
-		background-color: var(--color-error);
+	.close-btn:hover {
+		background: rgba(254, 110, 110, 0.15);
+		border-color: var(--color-error, #fe6e6e);
+		color: var(--color-error, #fe6e6e);
 	}
 
+	/* Scrollable content */
 	.drawer-content {
 		flex: 1;
 		overflow-y: auto;
-		padding: var(--space-lg);
+		overflow-x: hidden;
 	}
 
+	/* Empty state */
 	.empty-state {
 		display: flex;
 		flex-direction: column;
 		align-items: center;
 		justify-content: center;
 		height: 100%;
-		color: var(--color-text-muted);
+		min-height: 200px;
 		text-align: center;
+		color: var(--color-text-secondary, #888);
+	}
+
+	.empty-state p {
+		margin: 4px 0;
+	}
+
+	.empty-state .hint {
+		font-size: 13px;
+		color: var(--color-text-muted, #666);
 	}
 
 	.generating {
 		display: flex;
 		flex-direction: column;
 		align-items: center;
-		gap: var(--space-md);
+		gap: 12px;
 	}
 
 	.spinner {
-		width: 40px;
-		height: 40px;
-		border: 3px solid var(--color-bg-canvas);
-		border-top-color: var(--color-node-product);
+		width: 32px;
+		height: 32px;
+		border: 3px solid rgba(201, 254, 110, 0.2);
+		border-top-color: var(--color-node-product, #c9fe6e);
 		border-radius: 50%;
 		animation: spin 1s linear infinite;
 	}
@@ -290,143 +396,5 @@
 		to {
 			transform: rotate(360deg);
 		}
-	}
-
-	.hint {
-		font-size: var(--text-sm);
-		margin-top: var(--space-sm);
-	}
-
-	.image-grid {
-		column-count: 3;
-		column-gap: var(--space-lg);
-	}
-
-	@media (max-width: 1200px) {
-		.image-grid {
-			column-count: 2;
-		}
-	}
-
-	@media (max-width: 768px) {
-		.image-grid {
-			column-count: 1;
-		}
-	}
-
-	.image-card {
-		position: relative;
-		border-radius: var(--radius-lg);
-		overflow: hidden;
-		background-color: var(--color-bg-canvas);
-		cursor: pointer;
-		transition: transform var(--transition-fast);
-		break-inside: avoid;
-		margin-bottom: var(--space-lg);
-	}
-
-	.image-card:hover {
-		transform: scale(1.02);
-	}
-
-	.image-card img {
-		width: 100%;
-		height: auto;
-		display: block;
-	}
-
-	.image-overlay {
-		position: absolute;
-		inset: 0;
-		background: linear-gradient(to top, rgba(0, 0, 0, 0.6), transparent);
-		opacity: 0;
-		transition: opacity var(--transition-fast);
-		display: flex;
-		align-items: flex-end;
-		justify-content: flex-end;
-		padding: var(--space-sm);
-	}
-
-	.image-card:hover .image-overlay {
-		opacity: 1;
-	}
-
-	.overlay-btn {
-		width: 32px;
-		height: 32px;
-		border-radius: var(--radius-md);
-		background-color: var(--color-bg-ui);
-		color: var(--color-text-primary);
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		cursor: pointer;
-	}
-
-	.fullscreen-view {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		height: 100%;
-		gap: var(--space-lg);
-		position: relative;
-	}
-
-	.fullscreen-image {
-		max-width: 80%;
-		max-height: calc(100% - 80px);
-	}
-
-	.fullscreen-image img {
-		max-width: 100%;
-		max-height: 100%;
-		border-radius: var(--radius-lg);
-	}
-
-	.nav-btn {
-		width: 48px;
-		height: 48px;
-		border-radius: var(--radius-full);
-		background-color: var(--color-bg-canvas);
-		color: var(--color-text-primary);
-		font-size: 24px;
-		cursor: pointer;
-		transition: all var(--transition-fast);
-	}
-
-	.nav-btn:hover:not(:disabled) {
-		background-color: var(--color-bg-hover);
-	}
-
-	.nav-btn:disabled {
-		opacity: 0.3;
-		cursor: not-allowed;
-	}
-
-	.fullscreen-controls {
-		position: absolute;
-		bottom: 0;
-		left: 50%;
-		transform: translateX(-50%);
-		display: flex;
-		gap: var(--space-md);
-		padding: var(--space-md);
-	}
-
-	.control-btn {
-		padding: var(--space-sm) var(--space-lg);
-		background-color: var(--color-bg-canvas);
-		border-radius: var(--radius-md);
-		color: var(--color-text-primary);
-		font-size: var(--text-sm);
-		cursor: pointer;
-		display: flex;
-		align-items: center;
-		gap: var(--space-sm);
-		transition: all var(--transition-fast);
-	}
-
-	.control-btn:hover {
-		background-color: var(--color-bg-hover);
 	}
 </style>

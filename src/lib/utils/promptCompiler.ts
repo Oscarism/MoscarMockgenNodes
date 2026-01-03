@@ -19,7 +19,9 @@ import type {
   ClothingNodeData,
   VariationNodeData,
   PlantNodeData,
-  TextureNodeData
+  TextureNodeData,
+  PoseNodeData,
+  BackgroundNodeData
 } from '$lib/types';
 import { productCategories, getProductsByCategory } from '$lib/data/products';
 import { 
@@ -231,6 +233,105 @@ function compileTextureSegment(data: TextureNodeData): string {
   return preset?.prompt || data.textureType;
 }
 
+function compilePoseSegment(data: PoseNodeData): string {
+  const parts: string[] = [];
+  
+  // Style/mood mapping
+  const moodPrompts: Record<string, string> = {
+    'confident': 'confident powerful pose',
+    'relaxed': 'relaxed natural pose',
+    'professional': 'professional composed pose',
+    'playful': 'playful energetic pose',
+    'elegant': 'elegant graceful pose',
+    'casual': 'casual everyday pose',
+    'dramatic': 'dramatic expressive pose',
+    'minimal': 'minimal understated pose'
+  };
+  
+  // Body pose mapping
+  const posePrompts: Record<string, string> = {
+    'standing': 'standing upright',
+    'sitting': 'sitting comfortably',
+    'leaning': 'leaning casually',
+    'hand-on-hip': 'hand on hip',
+    'hand-on-neck': 'hand touching neck',
+    'arms-crossed': 'arms crossed',
+    'hands-in-pockets': 'hands in pockets',
+    'walking': 'walking in motion',
+    'reaching': 'reaching upward',
+    'crouching': 'crouching low',
+    'lying-down': 'lying down relaxed',
+    'jumping': 'jumping in air',
+    'dancing': 'dancing movement',
+    'stretching': 'stretching body',
+    'kneeling': 'kneeling down'
+  };
+  
+  if (data.styleMood && moodPrompts[data.styleMood]) {
+    parts.push(moodPrompts[data.styleMood]);
+  }
+  
+  if (data.bodyPose && posePrompts[data.bodyPose]) {
+    parts.push(posePrompts[data.bodyPose]);
+  }
+  
+  if (data.customPose && data.customPose.trim()) {
+    parts.push(data.customPose.trim());
+  }
+  
+  return parts.join(', ');
+}
+
+function compileBackgroundSegment(data: BackgroundNodeData): string {
+  const parts: string[] = [];
+  
+  // Style mapping
+  const stylePrompts: Record<string, string> = {
+    'seamless': 'seamless backdrop',
+    'textured': 'textured background',
+    'clean': 'clean minimal background',
+    'minimal': 'minimalist simple background'
+  };
+  
+  // Environment mapping
+  const envPrompts: Record<string, string> = {
+    'studio': 'professional photography studio background',
+    'nature': 'natural outdoor environment background',
+    'urban': 'urban city environment background',
+    'interior': 'interior room setting background',
+    'abstract': 'abstract artistic background',
+    'sky': 'sky and clouds background',
+    'beach': 'beach and ocean background',
+    'mountains': 'mountain landscape background'
+  };
+  
+  if (data.style && stylePrompts[data.style]) {
+    parts.push(stylePrompts[data.style]);
+  }
+  
+  // Add color if solid color is set and not white
+  if (data.solidColor && data.solidColor !== '#FFFFFF') {
+    parts.push(`${data.solidColor} colored background`);
+  }
+  
+  // Add gradient if set
+  if (data.gradientColors && data.gradientColors.length >= 2) {
+    parts.push(`gradient from ${data.gradientColors[0]} to ${data.gradientColors[1]}`);
+  }
+  
+  // Add environment
+  if (data.environment && envPrompts[data.environment]) {
+    parts.push(envPrompts[data.environment]);
+  }
+  
+  // Add custom prompt
+  if (data.customPrompt && data.customPrompt.trim()) {
+    parts.push(data.customPrompt.trim());
+  }
+  
+  return parts.join(', ');
+}
+
 // ============================================
 // Quality Descriptors (Best Practices)
 // ============================================
@@ -280,33 +381,8 @@ export function compilePrompt(
     };
   }
   
-  // Get all nodes connected to the output (traverse backwards)
-  const connectedNodeIds = getConnectedNodeIds(outputNode.id, edges);
-  const connectedNodes = nodes.filter(n => connectedNodeIds.has(n.id));
-  
-  // Sort by node type priority
-  const nodeOrder: Record<string, number> = {
-    'product': 10,
-    'human': 12,
-    'clothing': 14,
-    'branding': 20,
-    'scene': 30,
-    'plant': 35,
-    'texture': 37,
-    'style': 40,
-    'lighting': 50,
-    'camera': 60,
-    'custom': 70,
-    'variation': 75,
-    'image': 80,
-    'quality': 90
-  };
-  
-  connectedNodes.sort((a, b) => {
-    const orderA = nodeOrder[a.data.type] || 99;
-    const orderB = nodeOrder[b.data.type] || 99;
-    return orderA - orderB;
-  });
+  // Get all nodes connected to the output in connection order
+  const connectedNodes = getOrderedConnectedNodes(outputNode.id, edges, nodes);
   
   // Compile each node
   for (const node of connectedNodes) {
@@ -356,6 +432,12 @@ export function compilePrompt(
         break;
       case 'texture':
         content = compileTextureSegment(node.data as TextureNodeData);
+        break;
+      case 'pose':
+        content = compilePoseSegment(node.data as PoseNodeData);
+        break;
+      case 'background':
+        content = compileBackgroundSegment(node.data as BackgroundNodeData);
         break;
       // Quality node doesn't add to prompt text, only affects API params
     }
@@ -410,10 +492,10 @@ export function compilePrompt(
 export function getQualitySettings(
   nodes: PromptNode[], 
   edges: PromptEdge[]
-): { aspectRatio: string; quality: 'basic' | 'high'; model: string; resolution: string } {
+): { aspectRatio: string; quality: 'basic' | 'high'; model: string; models: string[]; resolution: string } {
   const outputNode = nodes.find(n => n.data.type === 'output');
   if (!outputNode) {
-    return { aspectRatio: '1:1', quality: 'basic', model: 'seedream/4.5-text-to-image', resolution: '1K' };
+    return { aspectRatio: '1:1', quality: 'basic', model: 'seedream/4.5-text-to-image', models: ['seedream/4.5-text-to-image'], resolution: '1K' };
   }
   
   const connectedNodeIds = getConnectedNodeIds(outputNode.id, edges);
@@ -427,11 +509,12 @@ export function getQualitySettings(
       aspectRatio: data.aspectRatio,
       quality: data.quality,
       model: data.model || 'seedream/4.5-text-to-image',
+      models: data.models || [data.model || 'seedream/4.5-text-to-image'],
       resolution: (data as any).resolution || '1K'
     };
   }
   
-  return { aspectRatio: '1:1', quality: 'basic', model: 'seedream/4.5-text-to-image', resolution: '1K' };
+  return { aspectRatio: '1:1', quality: 'basic', model: 'seedream/4.5-text-to-image', models: ['seedream/4.5-text-to-image'], resolution: '1K' };
 }
 
 /**
@@ -470,6 +553,7 @@ export function getUploadedImageUrls(
 
 /**
  * Get all node IDs connected to a target node (traversing backwards through edges)
+ * Returns nodes in reverse connection order (closest to output first)
  */
 function getConnectedNodeIds(targetId: string, edges: PromptEdge[]): Set<string> {
   const connected = new Set<string>();
@@ -490,6 +574,71 @@ function getConnectedNodeIds(targetId: string, edges: PromptEdge[]): Set<string>
   }
   
   return connected;
+}
+
+/**
+ * Get connected nodes in chain order (from start of chain to output)
+ * This traverses the graph and returns nodes in the order they should appear in the prompt
+ */
+function getOrderedConnectedNodes(targetId: string, edges: PromptEdge[], nodes: PromptNode[]): PromptNode[] {
+  // First, get all connected node IDs
+  const connectedIds = getConnectedNodeIds(targetId, edges);
+  
+  // Build adjacency list (source -> targets)
+  const adjacency = new Map<string, string[]>();
+  const inDegree = new Map<string, number>();
+  
+  // Initialize
+  for (const id of connectedIds) {
+    adjacency.set(id, []);
+    inDegree.set(id, 0);
+  }
+  
+  // Build graph
+  for (const edge of edges) {
+    if (connectedIds.has(edge.source) && (connectedIds.has(edge.target) || edge.target === targetId)) {
+      adjacency.get(edge.source)?.push(edge.target);
+      if (connectedIds.has(edge.target)) {
+        inDegree.set(edge.target, (inDegree.get(edge.target) || 0) + 1);
+      }
+    }
+  }
+  
+  // Find nodes with no incoming edges (start of chains)
+  const startNodes: string[] = [];
+  for (const [id, degree] of inDegree.entries()) {
+    if (degree === 0) {
+      startNodes.push(id);
+    }
+  }
+  
+  // Topological sort (Kahn's algorithm)
+  const orderedIds: string[] = [];
+  const queue = [...startNodes];
+  
+  while (queue.length > 0) {
+    const current = queue.shift()!;
+    orderedIds.push(current);
+    
+    const targets = adjacency.get(current) || [];
+    for (const target of targets) {
+      if (!connectedIds.has(target)) continue; // Skip output node
+      const newDegree = (inDegree.get(target) || 1) - 1;
+      inDegree.set(target, newDegree);
+      if (newDegree === 0) {
+        queue.push(target);
+      }
+    }
+  }
+  
+  // Map IDs to nodes
+  const orderedNodes = orderedIds
+    .map(id => nodes.find(n => n.id === id))
+    .filter((n): n is PromptNode => n !== undefined);
+  
+  console.log('[PromptCompiler] Node order:', orderedNodes.map(n => n.data.type));
+  
+  return orderedNodes;
 }
 
 /**

@@ -5,15 +5,22 @@
 		addNode,
 		clearCanvas,
 		downloadCanvas,
-		loadCanvasFromFile
+		loadCanvasFromFile,
+		saveToCloud,
+		loadFromCloud
 	} from '$lib/stores/canvas';
 	import { generationHistory, generationState, drawerState } from '$lib/stores/generation';
+	import { auth, user, isLoggedIn } from '$lib/stores/auth';
 	import type { NodeType } from '$lib/types';
 	import { NODE_COLORS, NODE_NAMES } from '$lib/types';
+	import LoginModal from './LoginModal.svelte';
+	import { toasts } from '$lib/stores/toasts';
 
 	let showDropdown = $state(false);
 	let showNodePalette = $state(false);
 	let showHistory = $state(false);
+	let showLoginModal = $state(false);
+	let showUserMenu = $state(false);
 	let fileInput: HTMLInputElement;
 
 	// Count generated images
@@ -31,9 +38,11 @@
 		'image',
 		'human',
 		'clothing',
+		'pose',
 		'variation',
 		'plant',
 		'texture',
+		'background',
 		'output',
 		'refine'
 	];
@@ -77,6 +86,39 @@
 	function handleViewImages() {
 		drawerState.update((s) => ({ ...s, mode: 'expanded' }));
 	}
+
+	// Cloud save/load state
+	let isSaving = $state(false);
+	let isLoadingCloud = $state(false);
+
+	async function handleCloudSave() {
+		if (!$user) {
+			toasts.error('Please sign in to save to cloud');
+			return;
+		}
+		isSaving = true;
+		try {
+			await saveToCloud($user.id);
+		} finally {
+			isSaving = false;
+		}
+	}
+
+	async function handleCloudLoad() {
+		if (!$user) {
+			toasts.error('Please sign in to load from cloud');
+			return;
+		}
+		isLoadingCloud = true;
+		try {
+			const loaded = await loadFromCloud($user.id);
+			if (!loaded) {
+				toasts.info('No saved canvas found');
+			}
+		} finally {
+			isLoadingCloud = false;
+		}
+	}
 </script>
 
 <header class="topbar">
@@ -110,18 +152,53 @@
 		</div>
 
 		<button class="toolbar-btn" onclick={handleShowHistory}>History</button>
-		<button class="toolbar-btn" onclick={handleLoad}>Load</button>
-		<button class="toolbar-btn" onclick={handleSave}>Save</button>
+		{#if $isLoggedIn}
+			<button class="toolbar-btn" onclick={handleCloudLoad} disabled={isLoadingCloud}>
+				{isLoadingCloud ? '...' : 'Load'}
+			</button>
+			<button class="toolbar-btn" onclick={handleCloudSave} disabled={isSaving}>
+				{isSaving ? '...' : 'Save'}
+			</button>
+		{:else}
+			<button class="toolbar-btn" onclick={handleLoad}>Load</button>
+			<button class="toolbar-btn" onclick={handleSave}>Save</button>
+		{/if}
 		<button class="toolbar-btn danger" onclick={handleReset}>Reset</button>
 	</div>
 
-	<!-- RIGHT: View Generations -->
+	<!-- RIGHT: View Generations + Auth -->
 	<div class="right-section">
 		<button class="toolbar-btn" onclick={handleViewImages}>
 			View Generations {#if imageCount > 0}({imageCount}){/if}
 		</button>
+
+		{#if $isLoggedIn}
+			<div class="user-dropdown-container">
+				<button class="user-btn" onclick={() => (showUserMenu = !showUserMenu)}>
+					<span class="user-avatar">{$user?.email?.[0]?.toUpperCase() || 'U'}</span>
+				</button>
+				{#if showUserMenu}
+					<div class="user-menu">
+						<div class="user-email">{$user?.email}</div>
+						<button
+							class="menu-item"
+							onclick={() => {
+								auth.signOut();
+								showUserMenu = false;
+							}}
+						>
+							Sign Out
+						</button>
+					</div>
+				{/if}
+			</div>
+		{:else}
+			<a href="/login" class="toolbar-btn accent">Sign In</a>
+		{/if}
 	</div>
 </header>
+
+<LoginModal isOpen={showLoginModal} onClose={() => (showLoginModal = false)} />
 
 <!-- History Panel -->
 {#if showHistory}
@@ -402,5 +479,83 @@
 			opacity: 1;
 			transform: translateY(0);
 		}
+	}
+
+	.toolbar-btn.accent {
+		/* Same as regular toolbar-btn - no special styling */
+	}
+
+	.toolbar-btn.accent:hover {
+		/* Same as regular toolbar-btn hover */
+	}
+
+	.user-dropdown-container {
+		position: relative;
+	}
+
+	.user-btn {
+		height: 36px;
+		padding: 0 12px;
+		border-radius: var(--radius-md, 8px);
+		border: 1px solid var(--color-text-muted);
+		background-color: var(--color-bg-ui);
+		color: var(--color-text-secondary);
+		cursor: pointer;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 6px;
+		font-weight: var(--font-semibold);
+		font-size: var(--text-sm);
+		transition: all 0.2s ease;
+	}
+
+	.user-btn:hover {
+		background-color: rgba(255, 255, 255, 0.1);
+		border-color: var(--color-node-product);
+		color: var(--color-text-primary);
+	}
+
+	.user-avatar {
+		font-size: var(--text-sm);
+	}
+
+	.user-menu {
+		position: absolute;
+		top: calc(100% + 8px);
+		right: 0;
+		background-color: var(--color-bg-ui);
+		border: 1px solid var(--color-text-muted);
+		border-radius: var(--radius-md);
+		min-width: 180px;
+		box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+		z-index: 1000;
+		overflow: hidden;
+	}
+
+	.user-email {
+		padding: var(--space-md);
+		font-size: var(--text-sm);
+		color: var(--color-text-secondary);
+		border-bottom: 1px solid var(--color-text-muted);
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.menu-item {
+		display: block;
+		width: 100%;
+		padding: var(--space-sm) var(--space-md);
+		background: transparent;
+		border: none;
+		color: var(--color-text-primary);
+		font-size: var(--text-sm);
+		text-align: left;
+		cursor: pointer;
+	}
+
+	.menu-item:hover {
+		background-color: var(--color-bg-canvas);
 	}
 </style>

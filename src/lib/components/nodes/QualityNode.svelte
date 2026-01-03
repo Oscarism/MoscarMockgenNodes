@@ -19,14 +19,32 @@
 		},
 		{ value: 'seedream/4.5-edit', label: 'Edit', description: 'Image editing' },
 		{ value: 'z-image', label: 'Z-Image', description: 'Realistic portraits' },
-		{ value: 'flux-2/pro-text-to-image', label: 'Flux Pro', description: 'Pro text-to-image' },
 		{ value: 'flux-2/pro-image-to-image', label: 'Flux I2I', description: 'Pro image editing' },
-		{ value: 'flux-2/flex-text-to-image', label: 'Flex', description: 'Flex text-to-image' },
-		{ value: 'flux-2/flex-image-to-image', label: 'Flex I2I', description: 'Flex image editing' },
 		{ value: 'nano-banana-pro', label: 'Nano B.', description: 'Versatile T2I/I2I with 4K' }
 	];
 
-	// Model-specific aspect ratio restrictions
+	// Comprehensive model-to-aspect-ratio mapping
+	const modelRatios: Record<GenerationModel, string[]> = {
+		'seedream/4.5-text-to-image': ['1:1', '4:3', '3:4', '16:9', '9:16', '2:3', '3:2', '21:9'],
+		'seedream/4.5-edit': ['1:1', '4:3', '3:4', '16:9', '9:16', '2:3', '3:2', '21:9'],
+		'z-image': ['1:1', '4:3', '3:4', '16:9', '9:16'],
+		'flux-2/pro-image-to-image': ['1:1', '4:3', '3:4', '16:9', '9:16', '3:2', '2:3', 'auto'],
+		'nano-banana-pro': [
+			'1:1',
+			'4:3',
+			'3:4',
+			'16:9',
+			'9:16',
+			'3:2',
+			'2:3',
+			'21:9',
+			'4:5',
+			'5:4',
+			'auto'
+		]
+	};
+
+	// Legacy individual arrays for backwards compatibility
 	const zImageRatios = ['1:1', '4:3', '3:4', '16:9', '9:16'];
 	const fluxRatios = ['1:1', '4:3', '3:4', '16:9', '9:16', '3:2', '2:3', 'auto'];
 	const nanoBananaRatios = [
@@ -50,45 +68,84 @@
 		{ value: '4K', label: '4K', description: 'Ultra high resolution' }
 	];
 
-	// Filter aspect ratios based on model
-	let availableRatios = $derived(() => {
-		if (data.model === 'z-image') {
-			return aspectRatioOptions.filter((r) => zImageRatios.includes(r.value));
+	// Get current selected models array (with fallback for backwards compatibility)
+	let selectedModels = $derived(data.models || [data.model] || ['seedream/4.5-text-to-image']);
+
+	// Compute intersection of aspect ratios supported by ALL selected models
+	let compatibleRatios = $derived.by(() => {
+		if (selectedModels.length === 0) return aspectRatioOptions.map((r) => r.value);
+
+		// Get ratios supported by the first model
+		let intersection = new Set(modelRatios[selectedModels[0] as GenerationModel] || []);
+
+		// Intersect with each subsequent model's supported ratios
+		for (let i = 1; i < selectedModels.length; i++) {
+			const modelRatioList = modelRatios[selectedModels[i] as GenerationModel] || [];
+			intersection = new Set([...intersection].filter((ratio) => modelRatioList.includes(ratio)));
 		}
-		if (data.model?.startsWith('flux-2/')) {
-			// Flux supports auto ratio
+
+		return [...intersection];
+	});
+
+	// Filter aspect ratio options to only show compatible ones
+	let availableRatios = $derived.by(() => {
+		const baseRatios = aspectRatioOptions.filter((r) => compatibleRatios.includes(r.value));
+
+		// Add auto option if compatible
+		if (compatibleRatios.includes('auto')) {
 			return [
-				...aspectRatioOptions.filter((r) => fluxRatios.includes(r.value)),
+				...baseRatios,
 				{ value: 'auto', label: 'Auto', description: 'Match first input image' }
 			];
 		}
-		if (data.model === 'nano-banana-pro') {
-			// Nano Banana supports more ratios
-			return [
-				...aspectRatioOptions.filter((r) => nanoBananaRatios.includes(r.value)),
-				{ value: 'auto', label: 'Auto', description: 'Match first input image' }
-			];
-		}
-		return aspectRatioOptions;
+
+		return baseRatios;
+	});
+
+	// Check if current aspect ratio is compatible with all selected models
+	let aspectRatioWarning = $derived.by(() => {
+		if (!data.aspectRatio) return null;
+		if (compatibleRatios.includes(data.aspectRatio)) return null;
+
+		// Find which models don't support the current ratio
+		const incompatibleModels = selectedModels.filter((model) => {
+			const supported = modelRatios[model as GenerationModel] || [];
+			return !supported.includes(data.aspectRatio);
+		});
+
+		if (incompatibleModels.length === 0) return null;
+
+		const modelNames = incompatibleModels
+			.map((m) => {
+				const option = modelOptions.find((o) => o.value === m);
+				return option?.label || m;
+			})
+			.join(', ');
+
+		return `⚠️ ${data.aspectRatio} not supported by: ${modelNames}. Select a different ratio or remove incompatible models.`;
 	});
 
 	// RESOLUTIONS
-	let currentResolutionOptions = $derived(() => {
-		if (data.model === 'nano-banana-pro') {
+	let currentResolutionOptions = $derived.by(() => {
+		const anyNanoBanana = selectedModels.includes('nano-banana-pro');
+		if (anyNanoBanana) {
 			return resolutionOptions;
 		}
 		// Flux only supports 1K/2K
 		return resolutionOptions.filter((r) => r.value !== '4K');
 	});
 
-	// Model capability checks
-	let isFluxModel = $derived(data.model?.startsWith('flux-2/'));
-	let isNanoBanana = $derived(data.model === 'nano-banana-pro');
-	let supportsQuality = $derived(!isFluxModel && !isNanoBanana && data.model !== 'z-image');
+	// Model capability checks (based on any selected model)
+	let isFluxModel = $derived(selectedModels.some((m) => m?.startsWith('flux-2/')));
+	let isNanoBanana = $derived(selectedModels.includes('nano-banana-pro'));
+	let supportsQuality = $derived(
+		selectedModels.some((m) => m === 'seedream/4.5-text-to-image' || m === 'seedream/4.5-edit')
+	);
 	let supportsResolution = $derived(isFluxModel || isNanoBanana);
 
 	let requiresImages = $derived(
-		data.model === 'seedream/4.5-edit' || data.model === 'flux-2/pro-image-to-image'
+		selectedModels.includes('seedream/4.5-edit') ||
+			selectedModels.includes('flux-2/pro-image-to-image')
 	);
 
 	function handleRatioChange(event: Event) {
@@ -96,11 +153,27 @@
 		updateNodeData(id, { aspectRatio });
 	}
 
-	function handleModelChange(model: GenerationModel) {
-		const updates: Partial<QualityNodeData> = { model };
+	function handleModelToggle(model: GenerationModel) {
+		const currentModels = [...selectedModels];
+		const index = currentModels.indexOf(model);
 
-		// Reset aspect ratio if not supported by new model
-		if (model === 'z-image' && !zImageRatios.includes(data.aspectRatio)) {
+		if (index > -1) {
+			// Remove if already selected (but keep at least one)
+			if (currentModels.length > 1) {
+				currentModels.splice(index, 1);
+			}
+		} else {
+			// Add if not selected
+			currentModels.push(model);
+		}
+
+		// Reset aspect ratio if z-image is selected and current ratio not supported
+		let updates: Partial<QualityNodeData> = {
+			models: currentModels,
+			model: currentModels[0] // Keep first selected as primary for backwards compat
+		};
+
+		if (currentModels.includes('z-image') && !zImageRatios.includes(data.aspectRatio)) {
 			updates.aspectRatio = '1:1';
 		}
 
@@ -110,35 +183,39 @@
 
 <BaseNode {id} nodeType="quality">
 	<div class="field">
-		<span class="label">Model</span>
+		<span class="label"
+			>Models <span class="selected-count">({selectedModels.length} selected)</span></span
+		>
 		<div class="model-toggle">
 			{#each modelOptions as option}
 				<button
 					type="button"
 					class="model-btn"
-					class:active={data.model === option.value}
-					onclick={() => handleModelChange(option.value)}
+					class:active={selectedModels.includes(option.value)}
+					onclick={() => handleModelToggle(option.value)}
 				>
 					{option.label}
 				</button>
 			{/each}
 		</div>
-		<span class="hint">
-			{modelOptions.find((m) => m.value === data.model)?.description || ''}
-		</span>
+		<span class="hint"> Click multiple models to generate with each </span>
 	</div>
 
 	<div class="field">
 		<label for="ratio-{id}">Aspect Ratio</label>
 		<select id="ratio-{id}" value={data.aspectRatio} onchange={handleRatioChange}>
-			{#each availableRatios() as ratio}
+			{#each availableRatios as ratio}
 				<option value={ratio.value}>{ratio.label}</option>
 			{/each}
 		</select>
-		<span class="hint">
-			{aspectRatioOptions.find((r) => r.value === data.aspectRatio)?.description ||
-				(data.aspectRatio === 'auto' ? 'Match first input image' : '')}
-		</span>
+		{#if aspectRatioWarning}
+			<span class="warning">{aspectRatioWarning}</span>
+		{:else}
+			<span class="hint">
+				{aspectRatioOptions.find((r) => r.value === data.aspectRatio)?.description ||
+					(data.aspectRatio === 'auto' ? 'Match first input image' : '')}
+			</span>
+		{/if}
 	</div>
 
 	{#if supportsQuality}
@@ -166,7 +243,7 @@
 		<div class="field">
 			<span class="label">Resolution</span>
 			<div class="quality-toggle">
-				{#each currentResolutionOptions() as option}
+				{#each currentResolutionOptions as option}
 					<button
 						type="button"
 						class="quality-btn"
@@ -179,8 +256,9 @@
 				{/each}
 			</div>
 			<span class="hint">
-				{currentResolutionOptions().find((r) => r.value === ((data as any).resolution || '1K'))
-					?.description || ''}
+				{currentResolutionOptions.find(
+					(r: { value: string }) => r.value === ((data as any).resolution || '1K')
+				)?.description || ''}
 			</span>
 		</div>
 	{/if}
@@ -205,6 +283,16 @@
 		font-size: var(--text-xs);
 		color: var(--color-text-muted);
 		margin-top: 2px;
+	}
+
+	.warning {
+		font-size: var(--text-xs);
+		color: var(--color-error, #ff6b6b);
+		margin-top: 2px;
+		padding: 4px 6px;
+		background-color: rgba(255, 107, 107, 0.1);
+		border-radius: var(--radius-sm);
+		line-height: 1.3;
 	}
 
 	.quality-toggle {

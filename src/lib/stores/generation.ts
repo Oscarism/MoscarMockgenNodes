@@ -4,6 +4,9 @@
 
 import { writable, derived, get } from 'svelte/store';
 import type { GenerationRecord, AspectRatio, Quality, GenerationModel } from '$lib/types';
+import { toasts } from './toasts';
+import { auth } from './auth';
+import { saveGeneration, updateGeneration, loadGenerationHistory } from '$lib/services/database';
 
 // ============================================
 // Generation State
@@ -28,6 +31,42 @@ export const generationState = writable<GenerationState>({
 // Generation History (Session-based)
 // ============================================
 export const generationHistory = writable<GenerationRecord[]>([]);
+
+/**
+ * Fetch user's generation history from database
+ * Call this when user logs in
+ */
+export async function fetchUserHistory(): Promise<void> {
+  const user = auth.getUser();
+  if (!user) {
+    console.log('[History] No user logged in, skipping fetch');
+    return;
+  }
+
+  console.log('[History] Loading history for user:', user.id);
+  const records = await loadGenerationHistory(user.id);
+  
+  if (records.length > 0) {
+    generationHistory.set(records);
+    
+    // Also populate generatedImages from successful records
+    const allImages: string[] = [];
+    for (const record of records) {
+      if (record.resultUrls) {
+        allImages.push(...record.resultUrls);
+      }
+    }
+    
+    if (allImages.length > 0) {
+      generationState.update(s => ({
+        ...s,
+        generatedImages: allImages
+      }));
+    }
+    
+    toasts.success(`Loaded ${records.length} generations from your history`);
+  }
+}
 
 // ============================================
 // Drawer State
@@ -126,30 +165,44 @@ export async function startGeneration(
 
 /**
  * Expand variations in prompt. Converts {a|b|c} syntax to array of prompts.
+ * Supports multiple variation blocks - each block cycles independently.
  */
 function expandVariations(prompt: string, count: number): string[] {
-  // Match {option1|option2|option3} pattern
-  const variationMatch = prompt.match(/\{([^}]+)\}/);
+  console.log(`[Generation] expandVariations called - count: ${count}, prompt: ${prompt.substring(0, 100)}...`);
   
-  if (!variationMatch) {
-    // No variations, return prompt repeated count times
-    return Array(count).fill(prompt);
+  // Find all variation blocks {option1|option2|option3}
+  const variationRegex = /\{([^}]+\|[^}]+)\}/g;
+  const matches: { block: string; options: string[] }[] = [];
+  let match;
+  
+  while ((match = variationRegex.exec(prompt)) !== null) {
+    const options = match[1].split('|').map(s => s.trim()).filter(s => s);
+    matches.push({ block: match[0], options });
+    console.log(`[Generation] Found variation block: ${match[0]} with ${options.length} options`);
   }
   
-  const variationBlock = variationMatch[0];
-  const options = variationMatch[1].split('|').map(s => s.trim()).filter(s => s);
-  
-  if (options.length === 0) {
-    return Array(count).fill(prompt.replace(variationBlock, ''));
+  if (matches.length === 0) {
+    // No variations, return prompt repeated count times
+    console.log(`[Generation] No variations found, returning ${count} identical prompts`);
+    return Array(count).fill(prompt);
   }
   
   // Generate prompts by cycling through variations
   const prompts: string[] = [];
   for (let i = 0; i < count; i++) {
-    const option = options[i % options.length];
-    prompts.push(prompt.replace(variationBlock, option));
+    let expandedPrompt = prompt;
+    
+    // Replace each variation block with the appropriate option
+    for (const { block, options } of matches) {
+      const option = options[i % options.length];
+      expandedPrompt = expandedPrompt.replace(block, option);
+    }
+    
+    prompts.push(expandedPrompt);
+    console.log(`[Generation] Prompt ${i + 1}: ${expandedPrompt.substring(0, 80)}...`);
   }
   
+  console.log(`[Generation] Generated ${prompts.length} prompts from variations`);
   return prompts;
 }
 
@@ -182,8 +235,7 @@ export async function startBatchGeneration(
   // Determine if model supports/requires images
   const modelsSupportingImages = [
     'seedream/4.5-edit', 
-    'flux-2/pro-image-to-image', 
-    'flux-2/flex-image-to-image',
+    'flux-2/pro-image-to-image',
     'nano-banana-pro'
   ];
   const shouldSendImages = modelsSupportingImages.includes(model);
@@ -233,7 +285,8 @@ export async function startBatchGeneration(
         aspectRatio,
         quality,
         taskId,
-        state: 'waiting'
+        state: 'waiting',
+        model: model // Track which model was used
       };
       
       generationHistory.update(h => [historyRecord, ...h]);
@@ -257,6 +310,149 @@ export async function startBatchGeneration(
 
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    toasts.error(`Generation failed: ${errorMessage}`);
+    generationState.update(s => ({
+      ...s,
+      isGenerating: false,
+      progress: 'error',
+      error: errorMessage
+    }));
+  }
+}
+
+/**
+ * Start a multi-model batch generation (generates for each selected model)
+ */
+export async function startMultiModelBatchGeneration(
+  prompt: string, 
+  aspectRatio: AspectRatio, 
+  quality: Quality,
+  batchCount: number,
+  models: GenerationModel[] = ['seedream/4.5-text-to-image'],
+  imageUrls: string[] = [],
+  resolution: string = '1K'
+): Promise<void> {
+  console.log(`[Generation] startMultiModelBatchGeneration called`);
+  console.log(`[Generation] Models: ${models.join(', ')}`);
+  console.log(`[Generation] Batch count: ${batchCount}`);
+  console.log(`[Generation] Prompt: ${prompt.substring(0, 150)}...`);
+  
+  // Expand variations into individual prompts
+  const prompts = expandVariations(prompt, batchCount);
+  
+  // Update state to generating
+  generationState.update(s => ({
+    ...s,
+    isGenerating: true,
+    progress: 'submitted',
+    error: null
+  }));
+
+  const taskIds: string[] = [];
+  const DELAY_BETWEEN_REQUESTS = 800; // 800ms delay between requests
+
+  // Models that support image input
+  const modelsSupportingImages = [
+    'seedream/4.5-edit', 
+    'flux-2/pro-image-to-image',
+    'nano-banana-pro'
+  ];
+
+  try {
+    // Loop through each model
+    for (const model of models) {
+      const shouldSendImages = modelsSupportingImages.includes(model);
+      
+      // Send generation requests for each prompt with each model
+      for (let i = 0; i < prompts.length; i++) {
+        const currentPrompt = prompts[i];
+        
+        // Add delay between requests (not for the first one)
+        if (taskIds.length > 0) {
+          await new Promise(resolve => setTimeout(resolve, DELAY_BETWEEN_REQUESTS));
+        }
+
+        const requestBody = { 
+          prompt: currentPrompt, 
+          aspectRatio, 
+          quality,
+          resolution,
+          model,
+          imageUrls: shouldSendImages ? imageUrls : undefined
+        };
+        
+        console.log(`[Generation] Sending API request for ${model}:`, {
+          promptLength: currentPrompt.length,
+          aspectRatio,
+          model
+        });
+
+        const response = await fetch('/api/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(requestBody)
+        });
+
+        const data = await response.json();
+        console.log(`[Generation] API response for ${model}:`, data);
+
+        if (!response.ok) {
+          throw new Error(data.msg || data.message || `Failed to start generation for ${model}`);
+        }
+        
+        if (data.code !== 200) {
+          throw new Error(data.msg || data.message || 'API error');
+        }
+
+        const taskId = data.data.taskId;
+        taskIds.push(taskId);
+
+        // Add to history with model info
+        const historyRecord: GenerationRecord = {
+          id: taskId,
+          timestamp: Date.now(),
+          prompt: currentPrompt,
+          aspectRatio,
+          quality,
+          taskId,
+          state: 'waiting',
+          model: model
+        };
+        
+        generationHistory.update(h => [historyRecord, ...h]);
+
+        // Save to database for logged-in users
+        const user = auth.getUser();
+        if (user) {
+          saveGeneration(user.id, historyRecord).then(dbId => {
+            if (dbId) {
+              console.log(`[Generation] Saved to database with ID: ${dbId}`);
+            }
+          });
+        }
+      }
+    }
+
+    generationState.update(s => ({
+      ...s,
+      currentTaskId: taskIds[0],
+      progress: 'processing'
+    }));
+
+    // Poll all tasks concurrently
+    await Promise.all(taskIds.map(taskId => pollForCompletion(taskId)));
+
+    // All done
+    toasts.success(`Generated ${taskIds.length} image${taskIds.length !== 1 ? 's' : ''} successfully!`);
+    generationState.update(s => ({
+      ...s,
+      isGenerating: false,
+      progress: 'complete'
+    }));
+
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    toasts.error(`Generation failed: ${errorMessage}`);
     generationState.update(s => ({
       ...s,
       isGenerating: false,
@@ -318,6 +514,16 @@ async function pollForCompletion(taskId: string): Promise<void> {
               : record
           )
         );
+
+        // Update database for logged-in users
+        const user = auth.getUser();
+        if (user) {
+          updateGeneration(taskId, 'success', imageUrls).then(success => {
+            if (success) {
+              console.log(`[Generation] Updated database with ${imageUrls.length} result URLs`);
+            }
+          });
+        }
         
         // Don't auto-open drawer - user can click "View Generated Images" if they want
         
@@ -325,22 +531,33 @@ async function pollForCompletion(taskId: string): Promise<void> {
         
       } else if (state === 'fail') {
         const errorMsg = data.data.failMsg || 'Generation failed';
+        const failCode = data.data.failCode || '';
+        const fullError = failCode ? `[${failCode}] ${errorMsg}` : errorMsg;
+        
+        // Show toast with detailed error
+        toasts.error(`Task failed: ${fullError}`);
         
         generationState.update(s => ({
           ...s,
           isGenerating: false,
           progress: 'error',
-          error: errorMsg
+          error: fullError
         }));
         
         // Update history
         generationHistory.update(h => 
           h.map(record => 
             record.taskId === taskId 
-              ? { ...record, state: 'fail', errorMessage: errorMsg }
+              ? { ...record, state: 'fail', errorMessage: fullError }
               : record
           )
         );
+
+        // Update database for logged-in users
+        const userForFail = auth.getUser();
+        if (userForFail) {
+          updateGeneration(taskId, 'fail', undefined, fullError);
+        }
         
         return;
       }

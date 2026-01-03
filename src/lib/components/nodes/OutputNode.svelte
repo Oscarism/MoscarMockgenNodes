@@ -2,7 +2,8 @@
 	import BaseNode from './BaseNode.svelte';
 	import type { OutputNodeData, PromptNode, PromptEdge, GenerationModel } from '$lib/types';
 	import { nodes, edges, updateNodeData } from '$lib/stores/canvas';
-	import { generationState, startBatchGeneration } from '$lib/stores/generation';
+	import { generationState, startMultiModelBatchGeneration } from '$lib/stores/generation';
+	import { promptOptimizer } from '$lib/stores/promptOptimizer';
 	import {
 		compilePrompt,
 		getQualitySettings,
@@ -24,6 +25,12 @@
 	let tokenEstimate = $derived(estimateTokens(compiled.prompt));
 	let isGenerating = $derived($generationState.isGenerating);
 
+	// Optimizer state
+	let optimizer = $derived($promptOptimizer);
+	let hasEnhancement = $derived(optimizer.optimizedPrompt !== null && !optimizer.isStale);
+	let isStale = $derived(optimizer.isStale);
+	let isOptimizing = $derived(optimizer.isOptimizing);
+
 	// Batch count options
 	const batchOptions = [1, 2, 3, 4, 6, 8];
 
@@ -32,30 +39,48 @@
 		updateNodeData(id, { batchCount });
 	}
 
+	// Enhance prompt with AI
+	async function handleEnhance() {
+		if (isOptimizing || !compiled.prompt) return;
+		const selectedModels = qualitySettings.models || [qualitySettings.model];
+		await promptOptimizer.optimize(compiled.prompt, selectedModels as GenerationModel[]);
+	}
+
 	async function handleGenerate() {
 		if (isGenerating || !compiled.prompt) return;
 
 		// Models that require images
-		const modelsRequiringImages = [
-			'seedream/4.5-edit',
-			'flux-2/pro-image-to-image',
-			'flux-2/flex-image-to-image'
-		];
+		const modelsRequiringImages = ['seedream/4.5-edit', 'flux-2/pro-image-to-image'];
 
-		// Check if image model is selected but no images uploaded
-		if (modelsRequiringImages.includes(qualitySettings.model) && imageUrls.length === 0) {
+		// Get selected models (with fallback)
+		const selectedModels = qualitySettings.models || [qualitySettings.model];
+
+		// Check if any selected image model requires images but none uploaded
+		const imageModelsSelected = selectedModels.filter((m) => modelsRequiringImages.includes(m));
+		if (imageModelsSelected.length > 0 && imageUrls.length === 0) {
 			alert(
-				'This model requires at least one uploaded image. Please add images to an Image Upload node.'
+				`The following models require at least one uploaded image: ${imageModelsSelected.join(', ')}. Please add images to an Image Upload node.`
 			);
 			return;
 		}
 
-		await startBatchGeneration(
-			compiled.prompt,
+		// Use enhanced prompt if available and selected, otherwise use original
+		const promptToUse =
+			hasEnhancement && optimizer.useEnhanced ? optimizer.optimizedPrompt : compiled.prompt;
+
+		console.log(
+			`[OutputNode] Generating with ${hasEnhancement && optimizer.useEnhanced ? 'ENHANCED' : 'ORIGINAL'} prompt`
+		);
+		console.log(`[OutputNode] Batch count: ${data.batchCount || 1}`);
+		console.log(`[OutputNode] Prompt: ${promptToUse?.substring(0, 100)}...`);
+
+		// Start multi-model batch generation
+		await startMultiModelBatchGeneration(
+			promptToUse!,
 			qualitySettings.aspectRatio as any,
 			qualitySettings.quality,
 			data.batchCount || 1,
-			qualitySettings.model as GenerationModel,
+			selectedModels as GenerationModel[],
 			imageUrls,
 			qualitySettings.resolution
 		);
@@ -97,23 +122,21 @@
 
 	<div class="settings-row">
 		<div class="settings-display">
-			<span class="setting model"
-				>{qualitySettings.model === 'seedream/4.5-edit'
-					? 'Edit'
-					: qualitySettings.model === 'z-image'
-						? 'Z-Img'
-						: qualitySettings.model === 'flux-2/pro-text-to-image'
-							? 'Flux Pro'
-							: qualitySettings.model === 'flux-2/pro-image-to-image'
-								? 'Flux I2I'
-								: qualitySettings.model === 'flux-2/flex-text-to-image'
-									? 'Flex'
-									: qualitySettings.model === 'flux-2/flex-image-to-image'
-										? 'Flex I2I'
-										: qualitySettings.model === 'nano-banana-pro'
-											? 'Nano B.'
-											: 'Seedream'}</span
-			>
+			{#each qualitySettings.models || [qualitySettings.model] as modelId}
+				<span class="setting model"
+					>{modelId === 'seedream/4.5-edit'
+						? 'Edit'
+						: modelId === 'seedream/4.5-text-to-image'
+							? 'Seedream'
+							: modelId === 'z-image'
+								? 'Z-Img'
+								: modelId === 'flux-2/pro-image-to-image'
+									? 'Flux I2I'
+									: modelId === 'nano-banana-pro'
+										? 'Nano B.'
+										: modelId}</span
+				>
+			{/each}
 			<span class="setting">{qualitySettings.aspectRatio}</span>
 			{#if qualitySettings.model?.startsWith('flux-2/') || qualitySettings.model === 'nano-banana-pro'}
 				<span class="setting">{qualitySettings.resolution}</span>
@@ -134,14 +157,41 @@
 		</div>
 	</div>
 
-	<button class="generate-btn" onclick={handleGenerate} disabled={isGenerating || !compiled.prompt}>
-		{#if isGenerating}
-			<span class="spinner"></span>
-			Generating...
-		{:else}
-			Generate {data.batchCount > 1 ? `${data.batchCount} Images` : 'Mockup'}
-		{/if}
-	</button>
+	<!-- Action Buttons -->
+	<div class="action-buttons">
+		<button
+			class="enhance-btn"
+			onclick={handleEnhance}
+			disabled={isOptimizing || isGenerating || !compiled.prompt}
+		>
+			{#if isOptimizing}
+				<span class="spinner"></span>
+				Enhancing...
+			{:else if optimizer.optimizedPrompt && !isStale}
+				Re-enhance
+			{:else if isStale}
+				Re-enhance (Changed)
+			{:else}
+				Enhance Prompt
+			{/if}
+		</button>
+
+		<button
+			class="generate-btn"
+			class:enhanced={hasEnhancement && optimizer.useEnhanced}
+			onclick={handleGenerate}
+			disabled={isGenerating || !compiled.prompt}
+		>
+			{#if isGenerating}
+				<span class="spinner"></span>
+				Generating...
+			{:else if hasEnhancement && optimizer.useEnhanced}
+				Generate with Enhanced
+			{:else}
+				Generate with Node Prompt
+			{/if}
+		</button>
+	</div>
 
 	{#if $generationState.error}
 		<div class="error">{$generationState.error}</div>
@@ -278,21 +328,58 @@
 		cursor: pointer;
 	}
 
-	.generate-btn {
-		width: 100%;
-		padding: var(--space-md);
-		background-color: var(--color-node-output);
+	.action-buttons {
+		display: flex;
+		gap: var(--space-sm);
+		margin-top: var(--space-sm);
+	}
+
+	.enhance-btn {
+		flex: 0 0 auto;
+		padding: var(--space-sm) var(--space-md);
+		background: linear-gradient(135deg, #667eea, #764ba2);
 		border: none;
 		border-radius: var(--radius-md);
-		color: var(--color-bg-canvas);
-		font-weight: var(--font-bold);
-		font-size: var(--text-base);
+		color: white;
+		font-weight: var(--font-medium);
+		font-size: var(--text-sm);
 		cursor: pointer;
 		transition: all var(--transition-fast);
 		display: flex;
 		align-items: center;
 		justify-content: center;
 		gap: var(--space-sm);
+	}
+
+	.enhance-btn:hover:not(:disabled) {
+		transform: scale(1.02);
+		box-shadow: 0 0 15px rgba(102, 126, 234, 0.4);
+	}
+
+	.enhance-btn:disabled {
+		opacity: 0.6;
+		cursor: not-allowed;
+	}
+
+	.generate-btn {
+		flex: 1;
+		padding: var(--space-md);
+		background-color: var(--color-node-output);
+		border: none;
+		border-radius: var(--radius-md);
+		color: var(--color-bg-canvas);
+		font-weight: var(--font-bold);
+		font-size: var(--text-sm);
+		cursor: pointer;
+		transition: all var(--transition-fast);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: var(--space-sm);
+	}
+
+	.generate-btn.enhanced {
+		background: linear-gradient(135deg, var(--color-node-product), var(--color-node-refine));
 	}
 
 	.generate-btn:hover:not(:disabled) {

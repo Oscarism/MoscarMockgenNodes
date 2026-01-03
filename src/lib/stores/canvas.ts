@@ -7,6 +7,8 @@ import { writable, derived, get } from 'svelte/store';
 import type { PromptNode, PromptEdge, NodeType, PromptNodeData } from '$lib/types';
 import { DEFAULT_NODE_DATA, NODE_COLORS } from '$lib/types';
 import { v4 as uuidv4 } from 'uuid';
+import { saveCanvas, loadLatestCanvas, listCanvases, type CanvasSummary } from '$lib/services/canvasDatabase';
+import { toasts } from './toasts';
 
 // ============================================
 // Core Canvas State
@@ -15,6 +17,11 @@ import { v4 as uuidv4 } from 'uuid';
 export const nodes = writable<PromptNode[]>([]);
 export const edges = writable<PromptEdge[]>([]);
 export const selectedNodeId = writable<string | null>(null);
+
+// Current canvas metadata
+export const currentCanvasId = writable<string | null>(null);
+export const currentCanvasName = writable<string>('Untitled Canvas');
+export const savedCanvases = writable<CanvasSummary[]>([]);
 
 // ============================================
 // Node Management Functions
@@ -245,4 +252,59 @@ export async function loadCanvasFromFile(file: File): Promise<void> {
   const text = await file.text();
   const data = JSON.parse(text) as CanvasExport;
   importCanvas(data);
+}
+
+// ============================================
+// Cloud Save/Load Functions
+// ============================================
+
+/**
+ * Save current canvas to Supabase
+ */
+export async function saveToCloud(userId: string, name?: string): Promise<boolean> {
+  const currentNodes = get(nodes);
+  const currentEdges = get(edges);
+  const canvasId = get(currentCanvasId);
+  const canvasName = name || get(currentCanvasName);
+
+  const savedId = await saveCanvas(userId, canvasName, currentNodes, currentEdges, canvasId || undefined);
+  
+  if (savedId) {
+    currentCanvasId.set(savedId);
+    currentCanvasName.set(canvasName);
+    toasts.success('Canvas saved to cloud');
+    return true;
+  }
+  
+  toasts.error('Failed to save canvas');
+  return false;
+}
+
+/**
+ * Load user's latest canvas from Supabase
+ */
+export async function loadFromCloud(userId: string): Promise<boolean> {
+  const canvas = await loadLatestCanvas(userId);
+  
+  if (canvas) {
+    nodes.set(canvas.nodes);
+    edges.set(canvas.edges);
+    currentCanvasId.set(canvas.id);
+    currentCanvasName.set(canvas.name);
+    selectedNodeId.set(null);
+    
+    console.log('[Canvas] Loaded from cloud:', canvas.name);
+    toasts.success(`Loaded canvas: ${canvas.name}`);
+    return true;
+  }
+  
+  return false;
+}
+
+/**
+ * Refresh list of user's saved canvases
+ */
+export async function loadUserCanvases(userId: string): Promise<void> {
+  const canvases = await listCanvases(userId);
+  savedCanvases.set(canvases);
 }

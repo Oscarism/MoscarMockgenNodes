@@ -24,7 +24,9 @@ export type NodeType =
 	| 'clothing'
 	| 'variation'
 	| 'plant'
-	| 'texture';
+	| 'texture'
+	| 'pose'
+	| 'background';
 
 // ============================================
 // Node Data Types
@@ -75,15 +77,13 @@ export type GenerationModel =
   | 'seedream/4.5-text-to-image' 
   | 'seedream/4.5-edit' 
   | 'z-image'
-  | 'flux-2/pro-text-to-image'
   | 'flux-2/pro-image-to-image'
-  | 'flux-2/flex-text-to-image'
-  | 'flux-2/flex-image-to-image'
   | 'nano-banana-pro';
 
 export interface QualityNodeData {
 	type: 'quality';
-	model: GenerationModel;
+	model: GenerationModel; // Kept for backwards compatibility
+	models: GenerationModel[]; // New: array for multi-model selection
 	aspectRatio: AspectRatio;
 	quality: 'basic' | 'high';
 }
@@ -159,6 +159,22 @@ export interface TextureNodeData {
 	customTexture?: string;
 }
 
+export interface PoseNodeData {
+	type: 'pose';
+	styleMood: string;
+	bodyPose: string;
+	customPose?: string;
+}
+
+export interface BackgroundNodeData {
+	type: 'background';
+	style: string;
+	solidColor: string;
+	gradientColors: string[];
+	environment: string;
+	customPrompt?: string;
+}
+
 // Image slot colors for up to 8 images
 export const IMAGE_SLOT_COLORS = [
 	'#FF6B6B', // Red
@@ -189,7 +205,9 @@ export type PromptNodeData =
 	| ClothingNodeData
 	| VariationNodeData
 	| PlantNodeData
-	| TextureNodeData;
+	| TextureNodeData
+	| PoseNodeData
+	| BackgroundNodeData;
 
 // ============================================
 // XYFlow Node Types
@@ -257,6 +275,7 @@ export interface GenerationRecord {
 	state: 'waiting' | 'success' | 'fail';
 	resultUrls?: string[];
 	errorMessage?: string;
+	model?: string; // Track which model was used for this generation
 	nodeConfiguration?: string; // JSON stringified node config
 }
 
@@ -302,7 +321,9 @@ export const NODE_COLORS: Record<NodeType, string> = {
 	clothing: '#12CBC4', // Turquoise
 	variation: '#F9E79F', // Yellow
 	plant: '#2ecc71', // Emerald Green
-	texture: '#95a5a6' // Concrete Gray
+	texture: '#95a5a6', // Concrete Gray
+	pose: '#E91E63', // Pink/Magenta
+	background: '#607D8B' // Blue Grey
 };
 
 // ============================================
@@ -324,7 +345,9 @@ export const NODE_NAMES: Record<NodeType, string> = {
 	clothing: 'Clothing / Outfit',
 	variation: 'Variations',
 	plant: 'Plants',
-	texture: 'Textures & Materials'
+	texture: 'Textures & Materials',
+	pose: 'Pose / Body Language',
+	background: 'Background'
 };
 
 // ============================================
@@ -366,6 +389,7 @@ export const DEFAULT_NODE_DATA: Record<NodeType, PromptNodeData> = {
 	quality: {
 		type: 'quality',
 		model: 'seedream/4.5-text-to-image',
+		models: ['seedream/4.5-text-to-image'],
 		aspectRatio: '1:1',
 		quality: 'basic'
 	},
@@ -421,5 +445,19 @@ export const DEFAULT_NODE_DATA: Record<NodeType, PromptNodeData> = {
 		type: 'texture',
 		textureType: 'wood',
 		customTexture: ''
+	},
+	pose: {
+		type: 'pose',
+		styleMood: 'confident',
+		bodyPose: 'standing',
+		customPose: ''
+	},
+	background: {
+		type: 'background',
+		style: 'clean',
+		solidColor: '#FFFFFF',
+		gradientColors: ['#667eea', '#764ba2'],
+		environment: '',
+		customPrompt: ''
 	}
 };
