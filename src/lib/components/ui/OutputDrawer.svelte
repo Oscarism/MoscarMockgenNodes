@@ -4,9 +4,12 @@
 		generationState,
 		drawerState,
 		setDrawerMode,
-		generationHistory
+		generationHistory,
+		hiddenImages,
+		visibleImages
 	} from '$lib/stores/generation';
 	import ImageLightbox from './ImageLightbox.svelte';
+	import { toasts } from '$lib/stores/toasts';
 
 	// Dynamic GSAP import (only in browser)
 	let gsap: any;
@@ -15,19 +18,21 @@
 	import type { GenerationRecord } from '$lib/types';
 
 	let mode = $derived($drawerState.mode);
-	let images = $derived($generationState.generatedImages);
+	let images = $derived($visibleImages); // Use visible images (excludes hidden)
+	let allImages = $derived($generationState.generatedImages); // All images for count
 	let isGenerating = $derived($generationState.isGenerating);
 	let history = $derived($generationHistory);
+	let hidden = $derived($hiddenImages);
 
-	// Split recent 20 images vs older
+	// Split recent 20 images vs older (from visible images only)
 	let recentImages = $derived(images.slice(0, 20));
 	let olderRecords = $derived.by(() => {
 		// Get records that have resultUrls and exclude the most recent 20 images
 		const recentSet = new Set(recentImages);
 		return history.filter((r) => {
 			if (!r.resultUrls?.length) return false;
-			// Check if any of this record's images are NOT in recent
-			return r.resultUrls.some((url) => !recentSet.has(url));
+			// Check if any of this record's images are NOT in recent and not hidden
+			return r.resultUrls.some((url) => !recentSet.has(url) && !hidden.has(url));
 		});
 	});
 
@@ -87,6 +92,13 @@
 
 	function handleHistoryImageClick(url: string, record: GenerationRecord) {
 		openLightbox(url);
+	}
+
+	function hideCurrentImage() {
+		if (!lightboxImage) return;
+		hiddenImages.hide(lightboxImage);
+		toasts.success('Image hidden from gallery');
+		closeLightbox();
 	}
 
 	// Drawer element ref for animation
@@ -156,7 +168,7 @@
 	<header class="drawer-header">
 		<div class="header-left">
 			<h3>Generated Images</h3>
-			<span class="count">{images.length}</span>
+			<span class="count">{images.length}{hidden.size > 0 ? ` (${hidden.size} hidden)` : ''}</span>
 		</div>
 		<div class="header-right">
 			{#if mode === 'expanded'}
@@ -246,6 +258,7 @@
 	isOpen={lightboxOpen}
 	onClose={closeLightbox}
 	onDownload={downloadCurrentImage}
+	onHide={hideCurrentImage}
 />
 
 <style>
@@ -353,6 +366,10 @@
 		flex: 1;
 		overflow-y: auto;
 		overflow-x: hidden;
+		/* iOS touch scrolling fix */
+		-webkit-overflow-scrolling: touch;
+		touch-action: pan-y;
+		overscroll-behavior: contain;
 	}
 
 	/* Empty state */

@@ -26,7 +26,9 @@ export type NodeType =
 	| 'plant'
 	| 'texture'
 	| 'pose'
-	| 'background';
+	| 'background'
+	| 'photography'
+	| 'batch';
 
 // ============================================
 // Node Data Types
@@ -36,6 +38,7 @@ export interface ProductNodeData {
 	category: string;
 	product: string;
 	customSpecs?: string;
+	autoEnhance?: boolean;
 }
 
 export interface SceneNodeData {
@@ -169,10 +172,34 @@ export interface PoseNodeData {
 export interface BackgroundNodeData {
 	type: 'background';
 	style: string;
-	solidColor: string;
-	gradientColors: string[];
-	environment: string;
+	solidColor?: string;
+	gradientColors?: string[];
+	environment?: string;
+	timeOfDay?: string;
+	mood?: string;
+	blur?: number;
 	customPrompt?: string;
+}
+
+export interface PhotographyNodeData {
+	type: 'photography';
+	preset: string;
+	autoEnhance: boolean;
+	customPrompt?: string;
+}
+
+export interface BatchImage {
+	file?: File;
+	previewUrl: string;
+	hostedUrl?: string;
+	status: 'pending' | 'uploading' | 'processing' | 'complete' | 'error';
+	error?: string;
+}
+
+export interface BatchProcessorNodeData {
+	type: 'batch';
+	images: BatchImage[];
+	prompt?: string;
 }
 
 // Image slot colors for up to 8 images
@@ -198,7 +225,6 @@ export type PromptNodeData =
 	| QualityNodeData
 	| OutputNodeData
 	| RefineNodeData
-	| RefineNodeData
 	| CustomPromptNodeData
 	| ImageUploadNodeData
 	| HumanNodeData
@@ -207,7 +233,9 @@ export type PromptNodeData =
 	| PlantNodeData
 	| TextureNodeData
 	| PoseNodeData
-	| BackgroundNodeData;
+	| BackgroundNodeData
+	| PhotographyNodeData
+	| BatchProcessorNodeData;
 
 // ============================================
 // XYFlow Node Types
@@ -323,7 +351,9 @@ export const NODE_COLORS: Record<NodeType, string> = {
 	plant: '#2ecc71', // Emerald Green
 	texture: '#95a5a6', // Concrete Gray
 	pose: '#E91E63', // Pink/Magenta
-	background: '#607D8B' // Blue Grey
+	background: '#607D8B', // Blue Grey
+	photography: '#3498db', // Bright Blue
+	batch: '#FF9F43' // Orange
 };
 
 // ============================================
@@ -347,7 +377,9 @@ export const NODE_NAMES: Record<NodeType, string> = {
 	plant: 'Plants',
 	texture: 'Textures & Materials',
 	pose: 'Pose / Body Language',
-	background: 'Background'
+	background: 'Background',
+	photography: 'Photography',
+	batch: 'Batch Processor'
 };
 
 // ============================================
@@ -456,8 +488,22 @@ export const DEFAULT_NODE_DATA: Record<NodeType, PromptNodeData> = {
 		type: 'background',
 		style: 'clean',
 		solidColor: '#FFFFFF',
-		gradientColors: ['#667eea', '#764ba2'],
+		gradientColors: undefined,
 		environment: '',
+		timeOfDay: '',
+		mood: '',
+		blur: 0,
 		customPrompt: ''
+	},
+	photography: {
+		type: 'photography',
+		preset: 'none',
+		autoEnhance: true,
+		customPrompt: ''
+	},
+	batch: {
+		type: 'batch',
+		images: [],
+		prompt: ''
 	}
 };

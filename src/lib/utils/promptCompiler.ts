@@ -21,7 +21,10 @@ import type {
   PlantNodeData,
   TextureNodeData,
   PoseNodeData,
-  BackgroundNodeData
+  BackgroundNodeData,
+  PhotographyNodeData,
+  BatchProcessorNodeData,
+  BatchImage
 } from '$lib/types';
 import { productCategories, getProductsByCategory } from '$lib/data/products';
 import { 
@@ -36,6 +39,12 @@ import {
   plantPresets,
   texturePresets
 } from '$lib/data/presets';
+import { 
+  type GenerationMode, 
+  type PhotographyPreset,
+  type ModeState,
+  getActivePreset 
+} from '$lib/stores/generationMode';
 
 // ============================================
 // Prompt Segment Generators
@@ -288,40 +297,175 @@ function compileBackgroundSegment(data: BackgroundNodeData): string {
   // Style mapping
   const stylePrompts: Record<string, string> = {
     'seamless': 'seamless backdrop',
-    'textured': 'textured background',
+    'textured': 'textured background with subtle surface detail',
     'clean': 'clean minimal background',
-    'minimal': 'minimalist simple background'
+    'minimal': 'minimalist simple background',
+    'bokeh': 'soft bokeh blur background with defocused lights',
+    'gradient': 'smooth gradient background',
+    'vignette': 'background with soft vignette edges',
+    'paper': 'paper texture background'
   };
   
-  // Environment mapping
+  // Environment mapping - expanded
   const envPrompts: Record<string, string> = {
-    'studio': 'professional photography studio background',
-    'nature': 'natural outdoor environment background',
-    'urban': 'urban city environment background',
-    'interior': 'interior room setting background',
+    'photo-studio': 'professional photography studio with softbox lighting',
+    'white-cyclorama': 'white infinity cyclorama photography studio',
+    'black-studio': 'dark black photography studio with dramatic lighting',
+    'product-studio': 'clean product photography studio setup',
+    'forest': 'lush green forest background',
+    'garden': 'beautiful garden with flowers',
+    'meadow': 'open meadow with wildflowers',
+    'autumn-forest': 'autumn forest with colorful fall leaves',
+    'beach': 'sandy beach with ocean waves',
+    'tropical': 'tropical paradise beach with palm trees',
+    'ocean': 'deep blue ocean background',
+    'lake': 'calm lake with reflections',
+    'blue-sky': 'clear blue sky with fluffy clouds',
+    'sunset-sky': 'dramatic sunset sky with orange and pink',
+    'starry-night': 'clear night sky with stars',
+    'northern-lights': 'northern lights aurora borealis',
+    'city': 'modern city skyline',
+    'street': 'urban street scene',
+    'neon-city': 'neon-lit cyberpunk city at night',
+    'cafe': 'cozy sidewalk café',
+    'living-room': 'modern living room interior',
+    'office': 'professional office interior',
+    'loft': 'industrial loft space',
+    'gallery': 'art gallery white walls',
     'abstract': 'abstract artistic background',
-    'sky': 'sky and clouds background',
-    'beach': 'beach and ocean background',
-    'mountains': 'mountain landscape background'
+    'geometric': 'geometric abstract shapes',
+    'smoke': 'colorful smoke and fog',
+    'marble': 'elegant marble texture',
+    'ethereal': 'ethereal dreamy fantasy realm',
+    'enchanted': 'magical enchanted forest',
+    'cosmic': 'cosmic space nebula',
+    'crystal': 'glowing crystal cave'
   };
   
+  // Time of day mapping
+  const timePrompts: Record<string, string> = {
+    'dawn': 'early dawn first light of day',
+    'sunrise': 'sunrise golden morning light',
+    'morning': 'bright morning daylight',
+    'midday': 'midday high sun bright light',
+    'afternoon': 'warm afternoon light',
+    'golden-hour': 'golden hour warm sunset light',
+    'sunset': 'sunset orange pink sky',
+    'blue-hour': 'blue hour twilight cool tones',
+    'dusk': 'dusk fading light evening',
+    'evening': 'evening ambient light',
+    'night': 'nighttime dark setting',
+    'midnight': 'deep midnight darkness',
+    'moonlit': 'moonlit night soft lunar glow'
+  };
+  
+  // Mood/atmosphere mapping
+  const moodPrompts: Record<string, string> = {
+    'warm': 'warm cozy inviting atmosphere',
+    'hot': 'hot summer heat haze',
+    'cool': 'cool calm refreshing atmosphere',
+    'cold': 'cold crisp winter atmosphere',
+    'neutral': 'neutral balanced temperature',
+    'calm': 'calm peaceful serene',
+    'relaxed': 'relaxed laid-back easy atmosphere',
+    'energetic': 'energetic dynamic lively',
+    'intense': 'intense powerful dramatic',
+    'happy': 'happy joyful cheerful bright',
+    'romantic': 'romantic love intimate soft',
+    'mysterious': 'mysterious enigmatic intriguing',
+    'dramatic': 'dramatic theatrical powerful',
+    'peaceful': 'peaceful tranquil zen',
+    'nostalgic': 'nostalgic vintage memories',
+    'dreamy': 'dreamy ethereal soft focus',
+    'cinematic': 'cinematic movie-like dramatic',
+    'editorial': 'editorial fashion magazine style',
+    'vintage': 'vintage retro old-fashioned',
+    'modern': 'modern contemporary sleek',
+    'minimalist': 'minimalist clean simple',
+    'sunny': 'sunny clear bright day',
+    'cloudy': 'cloudy overcast diffused light',
+    'rainy': 'rainy wet rain drops',
+    'foggy': 'foggy misty atmospheric haze',
+    'snowy': 'snowy winter snowfall'
+  };
+  
+  // Add style
   if (data.style && stylePrompts[data.style]) {
     parts.push(stylePrompts[data.style]);
   }
   
-  // Add color if solid color is set and not white
+  // Add color if solid color is set and not white (mutually exclusive with gradient/environment)
   if (data.solidColor && data.solidColor !== '#FFFFFF') {
     parts.push(`${data.solidColor} colored background`);
   }
-  
-  // Add gradient if set
-  if (data.gradientColors && data.gradientColors.length >= 2) {
-    parts.push(`gradient from ${data.gradientColors[0]} to ${data.gradientColors[1]}`);
+  // Add gradient if set (mutually exclusive with solid/environment)
+  else if (data.gradientColors && data.gradientColors.length >= 2) {
+    parts.push(`gradient from ${data.gradientColors[0]} to ${data.gradientColors[1]} background`);
+  }
+  // Add environment (mutually exclusive with solid/gradient)
+  else if (data.environment && envPrompts[data.environment]) {
+    parts.push(envPrompts[data.environment]);
   }
   
-  // Add environment
-  if (data.environment && envPrompts[data.environment]) {
-    parts.push(envPrompts[data.environment]);
+  // Add time of day
+  if (data.timeOfDay && timePrompts[data.timeOfDay]) {
+    parts.push(timePrompts[data.timeOfDay]);
+  }
+  
+  // Add mood/atmosphere
+  if (data.mood && moodPrompts[data.mood]) {
+    parts.push(moodPrompts[data.mood]);
+  }
+  
+  // Add blur effect
+  if (data.blur && data.blur > 0) {
+    if (data.blur > 70) {
+      parts.push('heavily blurred background with strong depth of field');
+    } else if (data.blur > 40) {
+      parts.push('blurred background with moderate depth of field');
+    } else {
+      parts.push('slightly blurred background with subtle depth of field');
+    }
+  }
+  
+  // Add custom prompt
+  if (data.customPrompt && data.customPrompt.trim()) {
+    parts.push(data.customPrompt.trim());
+  }
+  
+  return parts.join(', ');
+}
+
+/**
+ * Compile Photography Node segment
+ * Adds photography-style enhancements based on selected preset
+ */
+function compilePhotographySegment(data: PhotographyNodeData): string {
+  const parts: string[] = [];
+  
+  // If auto-enhance is disabled, only use custom prompt
+  if (data.autoEnhance === false) {
+    if (data.customPrompt && data.customPrompt.trim()) {
+      return data.customPrompt.trim();
+    }
+    return '';
+  }
+  
+  // Use the preset from generationMode store
+  const presetPrompts: Record<string, string> = {
+    'none': 'professional photography',
+    'portrait': 'portrait photography, natural skin tones, soft bokeh background, flattering lighting',
+    'landscape': 'landscape photography, natural lighting, vibrant colors, scenic depth',
+    'macro': 'macro photography, extreme close-up detail, shallow depth of field, sharp focus',
+    'street': 'street photography, candid moment, urban environment, natural lighting',
+    'fashion': 'fashion photography, editorial style, dramatic lighting, high fashion aesthetic',
+    'food': 'food photography, appetizing presentation, natural lighting, shallow depth of field',
+    'architecture': 'architectural photography, clean lines, dramatic perspective, balanced composition',
+    'wildlife': 'wildlife photography, natural habitat, sharp subject, blurred background'
+  };
+  
+  if (data.preset && presetPrompts[data.preset]) {
+    parts.push(presetPrompts[data.preset]);
   }
   
   // Add custom prompt
@@ -333,16 +477,19 @@ function compileBackgroundSegment(data: BackgroundNodeData): string {
 }
 
 // ============================================
-// Quality Descriptors (Best Practices)
+// Quality Descriptors - NOW MODE-AWARE
+// These are kept for backwards compatibility but
+// the actual presets come from generationMode store
 // ============================================
 
-const QUALITY_PREFIXES = [
+// Legacy constants - kept for reference, not used directly
+const LEGACY_QUALITY_PREFIXES = [
   'Professional product photography',
   'High resolution commercial mockup',
   '8K quality',
 ];
 
-const QUALITY_SUFFIXES = [
+const LEGACY_QUALITY_SUFFIXES = [
   'realistic shadows and lighting',
   'photorealistic materials and textures',
   'professional studio quality'
@@ -359,13 +506,18 @@ export interface CompiledPrompt {
   warnings: string[];
 }
 
+export interface CompileOptions {
+  modeState?: ModeState;
+}
+
 /**
  * Compile a prompt from all nodes connected to the output node
+ * Now mode-aware: uses presets from generationMode store
  */
 export function compilePrompt(
   nodes: PromptNode[], 
   edges: PromptEdge[],
-  includeQualityDescriptors: boolean = true
+  options: CompileOptions = {}
 ): CompiledPrompt {
   const segments: { nodeType: string; content: string }[] = [];
   const warnings: string[] = [];
@@ -439,6 +591,9 @@ export function compilePrompt(
       case 'background':
         content = compileBackgroundSegment(node.data as BackgroundNodeData);
         break;
+      case 'photography':
+        content = compilePhotographySegment(node.data as PhotographyNodeData);
+        break;
       // Quality node doesn't add to prompt text, only affects API params
     }
     
@@ -450,20 +605,62 @@ export function compilePrompt(
     }
   }
   
+  // === AUTO-DETECT MODE BASED ON CONNECTED NODES ===
+  // Check which node types are connected to determine the appropriate mode
+  const connectedNodeTypes = connectedNodes.map(n => n.data.type);
+  const hasBatchNode = connectedNodeTypes.includes('batch');
+  const hasPhotographyNode = connectedNodeTypes.includes('photography');
+  const hasProductNode = connectedNodeTypes.includes('product');
+  
+  // Determine mode:
+  // - Batch node = alteration mode (no presets, raw editing)
+  // - Photography node (without product) = photography mode  
+  // - Product node = product mode (with product mockup presets)
+  // - Otherwise = alteration mode (no presets)
+  let detectedMode: GenerationMode = 'alteration';
+  let detectedPreset: PhotographyPreset = 'none';
+  
+  if (hasBatchNode) {
+    // Batch processing = alteration mode (no presets, just the raw prompt for editing)
+    detectedMode = 'alteration';
+  } else if (hasPhotographyNode && !hasProductNode) {
+    // Photography node without product = photography mode
+    detectedMode = 'photography';
+    // Get the photography preset from the node
+    const photoNode = connectedNodes.find(n => n.data.type === 'photography');
+    if (photoNode) {
+      const photoData = photoNode.data as PhotographyNodeData;
+      detectedPreset = (photoData.preset as PhotographyPreset) || 'none';
+    }
+  } else if (hasProductNode) {
+    // Product node = product mode (with product mockup presets)
+    detectedMode = 'product';
+  }
+  // else: no specific mode, use alteration (no presets)
+  
+  // Build mode state - use passed options if available, otherwise use auto-detected
+  const autoModeState: ModeState = { 
+    mode: detectedMode, 
+    photographyPreset: detectedPreset, 
+    autoEnhance: !hasBatchNode // Disable auto-enhance for batch processing
+  };
+  const modeState = options.modeState || autoModeState;
+  const preset = getActivePreset(modeState);
+  
   // Build final prompt
   let promptParts: string[] = [];
   
-  // Add quality prefix
-  if (includeQualityDescriptors) {
-    promptParts.push(QUALITY_PREFIXES.join(', '));
+  // Add prefix if preset has any
+  if (preset.prefix.length > 0) {
+    promptParts.push(preset.prefix.join(', '));
   }
   
   // Add node segments
   promptParts.push(...segments.map(s => s.content));
   
-  // Add quality suffix
-  if (includeQualityDescriptors) {
-    promptParts.push(QUALITY_SUFFIXES.join(', '));
+  // Add suffix if preset has any
+  if (preset.suffix.length > 0) {
+    promptParts.push(preset.suffix.join(', '));
   }
   
   const finalPrompt = promptParts.join('. ');
@@ -473,8 +670,8 @@ export function compilePrompt(
     warnings.push(`Prompt exceeds 3000 characters (${finalPrompt.length}). Consider simplifying.`);
   }
   
-  // Check for product node
-  if (!connectedNodes.some(n => n.data.type === 'product')) {
+  // Only warn about missing product node in product mode
+  if (modeState.mode === 'product' && !connectedNodes.some(n => n.data.type === 'product')) {
     warnings.push('No product node connected. Consider adding one for better results.');
   }
   
@@ -680,3 +877,30 @@ export function getImageUrls(
   
   return urls;
 }
+
+/**
+ * Get batch images from connected BatchProcessorNode
+ * Returns the array of batch images for batch processing
+ */
+export function getBatchImages(
+  nodes: PromptNode[], 
+  edges: PromptEdge[]
+): BatchImage[] {
+  const outputNode = nodes.find(n => n.data.type === 'output');
+  if (!outputNode) {
+    return [];
+  }
+  
+  const connectedNodeIds = getConnectedNodeIds(outputNode.id, edges);
+  const batchNode = nodes.find(
+    n => connectedNodeIds.has(n.id) && n.data.type === 'batch'
+  );
+  
+  if (batchNode) {
+    const data = batchNode.data as BatchProcessorNodeData;
+    return data.images || [];
+  }
+  
+  return [];
+}
+

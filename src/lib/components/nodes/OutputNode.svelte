@@ -1,14 +1,21 @@
 <script lang="ts">
 	import BaseNode from './BaseNode.svelte';
-	import type { OutputNodeData, PromptNode, PromptEdge, GenerationModel } from '$lib/types';
+	import type { OutputNodeData, GenerationModel, BatchImage } from '$lib/types';
 	import { nodes, edges, updateNodeData } from '$lib/stores/canvas';
-	import { generationState, startMultiModelBatchGeneration } from '$lib/stores/generation';
+	import {
+		generationState,
+		startMultiModelBatchGeneration,
+		startBatchGeneration
+	} from '$lib/stores/generation';
 	import { promptOptimizer } from '$lib/stores/promptOptimizer';
+	import { uploadImageToHost } from '$lib/services/imageHost';
+	import { toasts } from '$lib/stores/toasts';
 	import {
 		compilePrompt,
 		getQualitySettings,
 		getUploadedImageUrls,
-		estimateTokens
+		estimateTokens,
+		getBatchImages
 	} from '$lib/utils/promptCompiler';
 
 	interface Props {
@@ -30,6 +37,28 @@
 	let hasEnhancement = $derived(optimizer.optimizedPrompt !== null && !optimizer.isStale);
 	let isStale = $derived(optimizer.isStale);
 	let isOptimizing = $derived(optimizer.isOptimizing);
+
+	// Batch processing state
+	let batchImages = $derived(getBatchImages($nodes, $edges));
+	let hasBatchImages = $derived(batchImages.length > 0);
+	let isProcessingBatch = $state(false);
+
+	// Models that support image-to-image
+	const IMAGE_TO_IMAGE_MODELS = [
+		'seedream/4.5-edit',
+		'flux-2/pro-image-to-image',
+		'nano-banana-pro'
+	];
+
+	// Check if selected models support batch/image-to-image
+	let selectedModels = $derived(qualitySettings.models || [qualitySettings.model]);
+	let unsupportedModels = $derived(
+		hasBatchImages ? selectedModels.filter((m) => !IMAGE_TO_IMAGE_MODELS.includes(m)) : []
+	);
+	let hasUnsupportedModel = $derived(unsupportedModels.length > 0 && hasBatchImages);
+	let supportedModelsForBatch = $derived(
+		selectedModels.filter((m) => IMAGE_TO_IMAGE_MODELS.includes(m))
+	);
 
 	// Batch count options
 	const batchOptions = [1, 2, 3, 4, 6, 8];
@@ -85,6 +114,77 @@
 			qualitySettings.resolution
 		);
 	}
+
+	// Process batch images one at a time
+	async function handleProcessBatch() {
+		if (isProcessingBatch || !compiled.prompt || batchImages.length === 0) return;
+
+		// Only use models that support image-to-image
+		if (supportedModelsForBatch.length === 0) {
+			toasts.error(
+				'No selected models support image-to-image. Please select Seedream Edit, Nano, or Flux I2I.'
+			);
+			return;
+		}
+
+		isProcessingBatch = true;
+		const toastId = toasts.progress(`Starting batch processing...`, 0, batchImages.length);
+
+		// Use enhanced prompt if available
+		const promptToUse =
+			hasEnhancement && optimizer.useEnhanced ? optimizer.optimizedPrompt : compiled.prompt;
+
+		try {
+			for (let i = 0; i < batchImages.length; i++) {
+				const img = batchImages[i];
+
+				// Update progress toast
+				toasts.updateProgress(
+					toastId,
+					i + 1,
+					batchImages.length,
+					`Processing image ${i + 1} of ${batchImages.length}...`
+				);
+
+				try {
+					// Upload image if not already uploaded
+					let hostedUrl = img.hostedUrl;
+					if (!hostedUrl && img.file) {
+						hostedUrl = await uploadImageToHost(img.file);
+					}
+
+					if (!hostedUrl) {
+						console.error(`Batch item ${i} has no hosted URL`);
+						continue;
+					}
+
+					// Start generation for this single image with each supported model
+					for (const model of supportedModelsForBatch) {
+						await startBatchGeneration(
+							promptToUse!,
+							qualitySettings.aspectRatio as any,
+							qualitySettings.quality,
+							1, // Single image per batch item
+							model as GenerationModel,
+							[hostedUrl],
+							qualitySettings.resolution
+						);
+					}
+				} catch (error) {
+					console.error(`Batch item ${i} failed:`, error);
+				}
+			}
+
+			// Complete
+			toasts.remove(toastId);
+			toasts.success(`Batch complete! Processed ${batchImages.length} images.`);
+		} catch (error) {
+			toasts.remove(toastId);
+			toasts.error(`Batch failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+		} finally {
+			isProcessingBatch = false;
+		}
+	}
 </script>
 
 <BaseNode {id} nodeType="output" showOutput={false}>
@@ -117,6 +217,23 @@
 			{#each compiled.warnings as warning}
 				<div class="warning-item">{warning}</div>
 			{/each}
+		</div>
+	{/if}
+
+	{#if hasUnsupportedModel}
+		<div class="model-warning">
+			<span class="warning-icon">⚠️</span>
+			<span
+				>Model{unsupportedModels.length > 1 ? 's' : ''}
+				<strong
+					>{unsupportedModels
+						.map((m) =>
+							m === 'seedream/4.5-text-to-image' ? 'Seedream T2I' : m === 'z-image' ? 'Z-Image' : m
+						)
+						.join(', ')}</strong
+				>
+				do{unsupportedModels.length === 1 ? 'es' : ''} not support image-to-image</span
+			>
 		</div>
 	{/if}
 
@@ -188,10 +305,36 @@
 			{:else if hasEnhancement && optimizer.useEnhanced}
 				Generate with Enhanced
 			{:else}
-				Generate with Node Prompt
+				Generate
 			{/if}
 		</button>
 	</div>
+
+	{#if hasBatchImages}
+		<div class="batch-section">
+			<div class="batch-info">
+				<span class="batch-label">Batch Queue</span>
+				<span class="batch-count">{batchImages.length} images</span>
+			</div>
+			<button
+				class="process-batch-btn"
+				onclick={handleProcessBatch}
+				disabled={isProcessingBatch ||
+					isGenerating ||
+					!compiled.prompt ||
+					supportedModelsForBatch.length === 0}
+			>
+				{#if isProcessingBatch}
+					<span class="spinner"></span>
+					Processing Batch...
+				{:else if supportedModelsForBatch.length === 0}
+					No Supported Model
+				{:else}
+					Process Batch ({batchImages.length})
+				{/if}
+			</button>
+		</div>
+	{/if}
 
 	{#if $generationState.error}
 		<div class="error">{$generationState.error}</div>
@@ -199,23 +342,17 @@
 </BaseNode>
 
 <style>
-	/* Make output node wider */
-	:global(.output-node-wrapper) {
-		min-width: 320px !important;
-		max-width: 380px !important;
+	.label {
+		font-size: var(--text-xs);
+		color: var(--color-text-secondary);
+		text-transform: uppercase;
+		letter-spacing: 0.5px;
 	}
 
 	.prompt-preview {
 		display: flex;
 		flex-direction: column;
 		gap: var(--space-tiny);
-	}
-
-	.prompt-preview .label {
-		font-size: var(--text-xs);
-		color: var(--color-text-secondary);
-		text-transform: uppercase;
-		letter-spacing: 0.5px;
 	}
 
 	.prompt-text {
@@ -418,5 +555,79 @@
 		background-color: rgba(254, 110, 110, 0.1);
 		border-radius: var(--radius-sm);
 		text-align: center;
+	}
+
+	.model-warning {
+		display: flex;
+		align-items: center;
+		gap: var(--space-sm);
+		padding: var(--space-sm);
+		background-color: rgba(254, 194, 110, 0.15);
+		border: 1px solid rgba(254, 194, 110, 0.4);
+		border-radius: var(--radius-sm);
+		font-size: var(--text-xs);
+		color: var(--color-warning);
+	}
+
+	.model-warning strong {
+		color: var(--color-text-primary);
+	}
+
+	.warning-icon {
+		font-size: 14px;
+	}
+
+	.batch-section {
+		margin-top: var(--space-md);
+		padding-top: var(--space-md);
+		border-top: 1px solid var(--color-text-muted);
+	}
+
+	.batch-info {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		margin-bottom: var(--space-sm);
+	}
+
+	.batch-label {
+		font-size: var(--text-xs);
+		color: var(--color-text-secondary);
+		text-transform: uppercase;
+		letter-spacing: 0.5px;
+	}
+
+	.batch-count {
+		font-size: var(--text-xs);
+		color: var(--color-node-image);
+		font-weight: var(--font-medium);
+	}
+
+	.process-batch-btn {
+		width: 100%;
+		padding: var(--space-sm);
+		background: linear-gradient(135deg, var(--color-node-image), #e67e22);
+		border: none;
+		border-radius: var(--radius-md);
+		color: white;
+		font-weight: var(--font-bold);
+		font-size: var(--text-sm);
+		cursor: pointer;
+		transition: all var(--transition-fast);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: var(--space-sm);
+	}
+
+	.process-batch-btn:hover:not(:disabled) {
+		transform: scale(1.02);
+		box-shadow: 0 0 15px rgba(255, 159, 67, 0.4);
+	}
+
+	.process-batch-btn:disabled {
+		opacity: 0.6;
+		cursor: not-allowed;
+		background: var(--color-text-muted);
 	}
 </style>

@@ -45,6 +45,10 @@
 	let incr = 0;
 	let maxScroll = 0;
 
+	// Touch scroll tracking
+	let touchStartY = 0;
+	let lastTouchY = 0;
+
 	function handleWheel(e: WheelEvent) {
 		if (!yTo1 || !yTo2 || !yTo3 || !yTo4) {
 			console.log('[MasonryGrid] handleWheel - quickTo not ready');
@@ -57,6 +61,33 @@
 		incr = Math.max(-maxScroll, Math.min(0, incr));
 
 		console.log('[MasonryGrid] Scroll incr:', incr.toFixed(0), 'deltaY:', e.deltaY);
+
+		// Each column moves at different speeds
+		yTo1(incr * 1.0);
+		yTo2(incr * 0.85);
+		yTo3(incr * 1.15);
+		yTo4(incr * 0.7);
+	}
+
+	// Touch event handlers for iPad/mobile
+	function handleTouchStart(e: TouchEvent) {
+		if (e.touches.length === 1) {
+			touchStartY = e.touches[0].clientY;
+			lastTouchY = touchStartY;
+		}
+	}
+
+	function handleTouchMove(e: TouchEvent) {
+		if (!yTo1 || !yTo2 || !yTo3 || !yTo4 || e.touches.length !== 1) return;
+
+		const currentY = e.touches[0].clientY;
+		const deltaY = lastTouchY - currentY; // Inverted for natural scroll direction
+		lastTouchY = currentY;
+
+		incr -= deltaY * 1.5; // Adjust sensitivity for touch
+
+		// Clamp to prevent over-scrolling
+		incr = Math.max(-maxScroll, Math.min(0, incr));
 
 		// Each column moves at different speeds
 		yTo1(incr * 1.0);
@@ -125,10 +156,16 @@
 
 		// Add wheel listener to grid
 		gridEl?.addEventListener('wheel', handleWheel, { passive: true });
+
+		// Add touch listeners for iPad/mobile
+		gridEl?.addEventListener('touchstart', handleTouchStart, { passive: true });
+		gridEl?.addEventListener('touchmove', handleTouchMove, { passive: true });
 	});
 
 	onDestroy(() => {
 		gridEl?.removeEventListener('wheel', handleWheel);
+		gridEl?.removeEventListener('touchstart', handleTouchStart);
+		gridEl?.removeEventListener('touchmove', handleTouchMove);
 	});
 
 	// Handle image hover
@@ -243,6 +280,9 @@
 		padding: 1.2vw;
 		overflow: hidden;
 		height: 100%;
+		/* Allow touch scrolling */
+		touch-action: pan-y;
+		-webkit-overflow-scrolling: touch;
 	}
 
 	.column {

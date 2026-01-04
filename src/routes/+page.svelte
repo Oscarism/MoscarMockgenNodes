@@ -67,7 +67,9 @@
 				PlantNode,
 				TextureNode,
 				PoseNode,
-				BackgroundNode
+				BackgroundNode,
+				PhotographyNode,
+				BatchProcessorNode
 			] = await Promise.all([
 				import('$lib/components/nodes/ProductNode.svelte'),
 				import('$lib/components/nodes/SceneNode.svelte'),
@@ -86,7 +88,9 @@
 				import('$lib/components/nodes/PlantNode.svelte'),
 				import('$lib/components/nodes/TextureNode.svelte'),
 				import('$lib/components/nodes/PoseNode.svelte'),
-				import('$lib/components/nodes/BackgroundNode.svelte')
+				import('$lib/components/nodes/BackgroundNode.svelte'),
+				import('$lib/components/nodes/PhotographyNode.svelte'),
+				import('$lib/components/nodes/BatchProcessorNode.svelte')
 			]);
 
 			nodeTypes = {
@@ -107,7 +111,9 @@
 				plant: PlantNode.default,
 				texture: TextureNode.default,
 				pose: PoseNode.default,
-				background: BackgroundNode.default
+				background: BackgroundNode.default,
+				photography: PhotographyNode.default,
+				batch: BatchProcessorNode.default
 			};
 
 			mounted = true;

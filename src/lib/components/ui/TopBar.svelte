@@ -28,6 +28,7 @@
 
 	const nodeTypes: NodeType[] = [
 		'product',
+		'photography',
 		'scene',
 		'style',
 		'branding',
@@ -36,6 +37,7 @@
 		'quality',
 		'custom',
 		'image',
+		'batch',
 		'human',
 		'clothing',
 		'pose',

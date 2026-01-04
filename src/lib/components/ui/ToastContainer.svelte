@@ -15,6 +15,8 @@
 				return '⚠';
 			case 'info':
 				return 'ℹ';
+			case 'progress':
+				return '⟳';
 			default:
 				return '';
 		}
@@ -30,8 +32,21 @@
 				in:fly={{ x: 300, duration: 300 }}
 				out:fade={{ duration: 200 }}
 			>
-				<span class="icon">{getIcon(toast.type)}</span>
-				<span class="message">{toast.message}</span>
+				<span class="icon" class:spinning={toast.type === 'progress'}>{getIcon(toast.type)}</span>
+				<div class="content">
+					<span class="message">{toast.message}</span>
+					{#if toast.progress && toast.progress.total > 0}
+						<div class="progress-bar">
+							<div
+								class="progress-fill"
+								style="width: {(toast.progress.current / toast.progress.total) * 100}%"
+							></div>
+						</div>
+						<span class="progress-text">
+							{toast.progress.current} / {toast.progress.total}
+						</span>
+					{/if}
+				</div>
 				<button class="close-btn" onclick={() => toasts.remove(toast.id)} aria-label="Close">
 					×
 				</button>
@@ -58,32 +73,39 @@
 		align-items: flex-start;
 		gap: 10px;
 		padding: 12px 16px;
-		border-radius: 8px;
-		background-color: var(--color-bg-ui, #1a1a1a);
+		border-radius: 12px;
 		border: 1px solid;
-		box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+		box-shadow: 0 4px 24px rgba(0, 0, 0, 0.5);
 		pointer-events: auto;
 		min-width: 280px;
+		/* Glassmorphism blur effect */
+		backdrop-filter: blur(30px);
+		-webkit-backdrop-filter: blur(30px);
 	}
 
 	.toast.success {
 		border-color: var(--color-success, #2ecc71);
-		background: linear-gradient(135deg, rgba(46, 204, 113, 0.15), rgba(46, 204, 113, 0.05));
+		background: linear-gradient(135deg, rgba(46, 204, 113, 0.2), rgba(46, 204, 113, 0.08));
 	}
 
 	.toast.error {
 		border-color: var(--color-error, #ff6b6b);
-		background: linear-gradient(135deg, rgba(255, 107, 107, 0.15), rgba(255, 107, 107, 0.05));
+		background: linear-gradient(135deg, rgba(255, 107, 107, 0.2), rgba(255, 107, 107, 0.08));
 	}
 
 	.toast.warning {
 		border-color: #f39c12;
-		background: linear-gradient(135deg, rgba(243, 156, 18, 0.15), rgba(243, 156, 18, 0.05));
+		background: linear-gradient(135deg, rgba(243, 156, 18, 0.2), rgba(243, 156, 18, 0.08));
 	}
 
 	.toast.info {
 		border-color: #3498db;
-		background: linear-gradient(135deg, rgba(52, 152, 219, 0.15), rgba(52, 152, 219, 0.05));
+		background: linear-gradient(135deg, rgba(52, 152, 219, 0.2), rgba(52, 152, 219, 0.08));
+	}
+
+	.toast.progress {
+		border-color: #9b59b6;
+		background: linear-gradient(135deg, rgba(155, 89, 182, 0.2), rgba(155, 89, 182, 0.08));
 	}
 
 	.icon {
@@ -96,6 +118,16 @@
 		align-items: center;
 		justify-content: center;
 		border-radius: 50%;
+	}
+
+	.icon.spinning {
+		animation: spin 1s linear infinite;
+	}
+
+	@keyframes spin {
+		to {
+			transform: rotate(360deg);
+		}
 	}
 
 	.toast.success .icon {
@@ -114,12 +146,40 @@
 		color: #3498db;
 	}
 
-	.message {
+	.toast.progress .icon {
+		color: #9b59b6;
+	}
+
+	.content {
 		flex: 1;
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
+	}
+
+	.message {
 		font-size: 13px;
 		line-height: 1.4;
 		color: var(--color-text-primary, #fff);
 		word-break: break-word;
+	}
+
+	.progress-bar {
+		height: 4px;
+		background: rgba(255, 255, 255, 0.15);
+		border-radius: 2px;
+		overflow: hidden;
+	}
+
+	.progress-fill {
+		height: 100%;
+		background: #9b59b6;
+		transition: width 0.3s ease;
+	}
+
+	.progress-text {
+		font-size: 11px;
+		color: var(--color-text-muted, #888);
 	}
 
 	.close-btn {

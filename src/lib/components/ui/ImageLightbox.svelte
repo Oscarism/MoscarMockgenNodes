@@ -11,9 +11,10 @@
 		isOpen: boolean;
 		onClose: () => void;
 		onDownload: () => void;
+		onHide?: () => void;
 	}
 
-	let { imageUrl, modelLabel, isOpen, onClose, onDownload }: Props = $props();
+	let { imageUrl, modelLabel, isOpen, onClose, onDownload, onHide }: Props = $props();
 
 	let overlayEl: HTMLDivElement;
 	let contentEl: HTMLDivElement;
@@ -102,6 +103,26 @@
 						/>
 					</svg>
 				</button>
+				{#if onHide}
+					<button class="control-btn hide-btn" onclick={onHide} aria-label="Hide image">
+						<svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+							<path
+								d="M2.5 10C2.5 10 5.5 4 10 4C14.5 4 17.5 10 17.5 10C17.5 10 14.5 16 10 16C5.5 16 2.5 10 2.5 10Z"
+								stroke="currentColor"
+								stroke-width="1.5"
+								stroke-linecap="round"
+								stroke-linejoin="round"
+							/>
+							<circle cx="10" cy="10" r="2.5" stroke="currentColor" stroke-width="1.5" />
+							<path
+								d="M3 17L17 3"
+								stroke="currentColor"
+								stroke-width="1.5"
+								stroke-linecap="round"
+							/>
+						</svg>
+					</button>
+				{/if}
 				<button class="control-btn close-btn" onclick={handleClose} aria-label="Close">
 					<svg width="20" height="20" viewBox="0 0 20 20" fill="none">
 						<path
@@ -207,5 +228,11 @@
 		background: rgba(254, 110, 110, 0.2);
 		border-color: var(--color-error, #fe6e6e);
 		color: var(--color-error, #fe6e6e);
+	}
+
+	.hide-btn:hover {
+		background: rgba(255, 159, 67, 0.2);
+		border-color: #ff9f43;
+		color: #ff9f43;
 	}
 </style>

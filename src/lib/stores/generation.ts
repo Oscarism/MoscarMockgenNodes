@@ -82,12 +82,84 @@ export const drawerState = writable<{
 });
 
 // ============================================
+// Hidden Images (persisted in localStorage)
+// Hides images from UI without deleting from database
+// ============================================
+function createHiddenImagesStore() {
+  // Load from localStorage if available
+  const storedHidden: string[] = typeof localStorage !== 'undefined' 
+    ? JSON.parse(localStorage.getItem('moscar-hidden-images') || '[]')
+    : [];
+  
+  const { subscribe, update, set } = writable<Set<string>>(new Set(storedHidden));
+  
+  // Save to localStorage whenever the store changes
+  function save(hiddenSet: Set<string>) {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('moscar-hidden-images', JSON.stringify([...hiddenSet]));
+    }
+  }
+  
+  return {
+    subscribe,
+    
+    /**
+     * Hide an image from the UI
+     */
+    hide: (imageUrl: string) => {
+      update(hidden => {
+        hidden.add(imageUrl);
+        save(hidden);
+        return hidden;
+      });
+    },
+    
+    /**
+     * Unhide an image (make visible again)
+     */
+    unhide: (imageUrl: string) => {
+      update(hidden => {
+        hidden.delete(imageUrl);
+        save(hidden);
+        return hidden;
+      });
+    },
+    
+    /**
+     * Check if an image is hidden
+     */
+    isHidden: (imageUrl: string): boolean => {
+      const hidden = get({ subscribe });
+      return hidden.has(imageUrl);
+    },
+    
+    /**
+     * Clear all hidden images
+     */
+    clearAll: () => {
+      set(new Set());
+      if (typeof localStorage !== 'undefined') {
+        localStorage.removeItem('moscar-hidden-images');
+      }
+    }
+  };
+}
+
+export const hiddenImages = createHiddenImagesStore();
+
+// ============================================
 // Derived Stores
 // ============================================
 
 export const isGenerating = derived(generationState, $state => $state.isGenerating);
 export const currentImages = derived(generationState, $state => $state.generatedImages);
 export const generationError = derived(generationState, $state => $state.error);
+
+// Visible images (filtered out hidden ones)
+export const visibleImages = derived(
+  [generationState, hiddenImages],
+  ([$state, $hidden]) => $state.generatedImages.filter(url => !$hidden.has(url))
+);
 
 // ============================================
 // Generation Actions

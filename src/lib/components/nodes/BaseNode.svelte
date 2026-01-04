@@ -11,9 +11,10 @@
 		children?: import('svelte').Snippet;
 		showInput?: boolean;
 		showOutput?: boolean;
+		width?: number;
 	}
 
-	let { id, nodeType, children, showInput = true, showOutput = true }: Props = $props();
+	let { id, nodeType, children, showInput = true, showOutput = true, width }: Props = $props();
 
 	// Use $derived for values that depend on props
 	let color = $derived(NODE_COLORS[nodeType]);
@@ -28,7 +29,7 @@
 	class="node-wrapper"
 	class:connected={isConnected}
 	class:selected={isSelected}
-	style="--node-color: {color}"
+	style="--node-color: {color}; {width ? `min-width: ${width}px; max-width: ${width}px;` : ''}"
 >
 	<!-- Input Handle -->
 	{#if showInput}
