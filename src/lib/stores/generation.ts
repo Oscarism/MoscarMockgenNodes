@@ -7,6 +7,7 @@ import type { GenerationRecord, AspectRatio, Quality, GenerationModel } from '$l
 import { toasts } from './toasts';
 import { auth } from './auth';
 import { saveGeneration, updateGeneration, loadGenerationHistory } from '$lib/services/database';
+import { uploadMultipleToStorage } from '$lib/services/imageStorage';
 
 // ============================================
 // Generation State
@@ -82,21 +83,30 @@ export const drawerState = writable<{
 });
 
 // ============================================
-// Hidden Images (persisted in localStorage)
+// Hidden Images (persisted to database for logged-in users)
 // Hides images from UI without deleting from database
 // ============================================
 function createHiddenImagesStore() {
-  // Load from localStorage if available
+  // Load from localStorage initially (fallback for non-logged-in users)
   const storedHidden: string[] = typeof localStorage !== 'undefined' 
     ? JSON.parse(localStorage.getItem('moscar-hidden-images') || '[]')
     : [];
   
   const { subscribe, update, set } = writable<Set<string>>(new Set(storedHidden));
   
-  // Save to localStorage whenever the store changes
-  function save(hiddenSet: Set<string>) {
+  // Save to localStorage (fallback)
+  function saveToLocal(hiddenSet: Set<string>) {
     if (typeof localStorage !== 'undefined') {
       localStorage.setItem('moscar-hidden-images', JSON.stringify([...hiddenSet]));
+    }
+  }
+  
+  // Async save to database for logged-in users
+  async function syncToDatabase(hiddenSet: Set<string>) {
+    const user = auth.getUser();
+    if (user) {
+      const { saveHiddenImages } = await import('$lib/services/database');
+      await saveHiddenImages(user.id, [...hiddenSet]);
     }
   }
   
@@ -104,12 +114,13 @@ function createHiddenImagesStore() {
     subscribe,
     
     /**
-     * Hide an image from the UI
+     * Hide an image (delete from UI)
      */
     hide: (imageUrl: string) => {
       update(hidden => {
         hidden.add(imageUrl);
-        save(hidden);
+        saveToLocal(hidden);
+        syncToDatabase(hidden); // Async save to database
         return hidden;
       });
     },
@@ -120,7 +131,8 @@ function createHiddenImagesStore() {
     unhide: (imageUrl: string) => {
       update(hidden => {
         hidden.delete(imageUrl);
-        save(hidden);
+        saveToLocal(hidden);
+        syncToDatabase(hidden);
         return hidden;
       });
     },
@@ -140,6 +152,25 @@ function createHiddenImagesStore() {
       set(new Set());
       if (typeof localStorage !== 'undefined') {
         localStorage.removeItem('moscar-hidden-images');
+      }
+      syncToDatabase(new Set());
+    },
+    
+    /**
+     * Load hidden images from database for logged-in user
+     * Call this after user logs in
+     */
+    loadFromDatabase: async () => {
+      const user = auth.getUser();
+      if (!user) return;
+      
+      const { loadHiddenImages } = await import('$lib/services/database');
+      const hiddenUrls = await loadHiddenImages(user.id);
+      
+      if (hiddenUrls.length > 0) {
+        set(new Set(hiddenUrls));
+        saveToLocal(new Set(hiddenUrls)); // Also update localStorage
+        console.log(`[HiddenImages] Loaded ${hiddenUrls.length} hidden images from database`);
       }
     }
   };
@@ -362,6 +393,16 @@ export async function startBatchGeneration(
       };
       
       generationHistory.update(h => [historyRecord, ...h]);
+
+      // Save to database for logged-in users
+      const user = auth.getUser();
+      if (user) {
+        saveGeneration(user.id, historyRecord).then(dbId => {
+          if (dbId) {
+            console.log(`[BatchGeneration] Saved to database with ID: ${dbId}`);
+          }
+        });
+      }
     }
 
     generationState.update(s => ({
@@ -444,63 +485,68 @@ export async function startMultiModelBatchGeneration(
           await new Promise(resolve => setTimeout(resolve, DELAY_BETWEEN_REQUESTS));
         }
 
-        const requestBody = { 
-          prompt: currentPrompt, 
-          aspectRatio, 
-          quality,
-          resolution,
-          model,
-          imageUrls: shouldSendImages ? imageUrls : undefined
-        };
-        
-        console.log(`[Generation] Sending API request for ${model}:`, {
-          promptLength: currentPrompt.length,
-          aspectRatio,
-          model
-        });
-
-        const response = await fetch('/api/generate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(requestBody)
-        });
-
-        const data = await response.json();
-        console.log(`[Generation] API response for ${model}:`, data);
-
-        if (!response.ok) {
-          throw new Error(data.msg || data.message || `Failed to start generation for ${model}`);
-        }
-        
-        if (data.code !== 200) {
-          throw new Error(data.msg || data.message || 'API error');
-        }
-
-        const taskId = data.data.taskId;
-        taskIds.push(taskId);
-
-        // Add to history with model info
-        const historyRecord: GenerationRecord = {
-          id: taskId,
-          timestamp: Date.now(),
-          prompt: currentPrompt,
-          aspectRatio,
-          quality,
-          taskId,
-          state: 'waiting',
-          model: model
-        };
-        
-        generationHistory.update(h => [historyRecord, ...h]);
-
-        // Save to database for logged-in users
-        const user = auth.getUser();
-        if (user) {
-          saveGeneration(user.id, historyRecord).then(dbId => {
-            if (dbId) {
-              console.log(`[Generation] Saved to database with ID: ${dbId}`);
-            }
+        try {
+          const requestBody = { 
+            prompt: currentPrompt, 
+            aspectRatio, 
+            quality,
+            resolution,
+            model,
+            imageUrls: shouldSendImages ? imageUrls : undefined
+          };
+          
+          console.log(`[Generation] Sending API request for ${model}:`, {
+            promptLength: currentPrompt.length,
+            aspectRatio,
+            model
           });
+
+          const response = await fetch('/api/generate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(requestBody)
+          });
+
+          const data = await response.json();
+          console.log(`[Generation] API response for ${model}:`, data);
+
+          if (!response.ok || data.code !== 200) {
+            const errorMsg = data.msg || data.message || `Failed to start generation for ${model}`;
+            console.error(`[Generation] Model ${model} failed:`, errorMsg);
+            toasts.error(`${model.split('/').pop() || model} failed: ${errorMsg}`);
+            continue; // Skip this model but continue with others
+          }
+
+          const taskId = data.data.taskId;
+          taskIds.push(taskId);
+
+          // Add to history with model info
+          const historyRecord: GenerationRecord = {
+            id: taskId,
+            timestamp: Date.now(),
+            prompt: currentPrompt,
+            aspectRatio,
+            quality,
+            taskId,
+            state: 'waiting',
+            model: model
+          };
+          
+          generationHistory.update(h => [historyRecord, ...h]);
+
+          // Save to database for logged-in users
+          const user = auth.getUser();
+          if (user) {
+            saveGeneration(user.id, historyRecord).then(dbId => {
+              if (dbId) {
+                console.log(`[Generation] Saved to database with ID: ${dbId}`);
+              }
+            });
+          }
+        } catch (modelError) {
+          console.error(`[Generation] Exception for model ${model}:`, modelError);
+          toasts.error(`${model.split('/').pop() || model}: ${modelError instanceof Error ? modelError.message : 'Failed'}`);
+          // Continue with next model
         }
       }
     }
@@ -569,12 +615,20 @@ async function pollForCompletion(taskId: string): Promise<void> {
       if (state === 'success') {
         // Parse result
         const resultJson = JSON.parse(data.data.resultJson || '{}');
-        const imageUrls = resultJson.resultUrls || [];
+        const tempImageUrls = resultJson.resultUrls || [];
+        
+        // Upload images to permanent Supabase Storage for logged-in users
+        const user = auth.getUser();
+        let imageUrls = tempImageUrls;
+        
+        if (user && tempImageUrls.length > 0) {
+          console.log(`[Generation] Uploading ${tempImageUrls.length} images to permanent storage...`);
+          imageUrls = await uploadMultipleToStorage(tempImageUrls, user.id);
+          console.log(`[Generation] Uploaded to Supabase Storage:`, imageUrls);
+        }
         
         generationState.update(s => ({
           ...s,
-          isGenerating: false,
-          progress: 'complete',
           generatedImages: [...imageUrls, ...s.generatedImages]
         }));
         
@@ -587,12 +641,11 @@ async function pollForCompletion(taskId: string): Promise<void> {
           )
         );
 
-        // Update database for logged-in users
-        const user = auth.getUser();
+        // Update database with permanent URLs for logged-in users
         if (user) {
           updateGeneration(taskId, 'success', imageUrls).then(success => {
             if (success) {
-              console.log(`[Generation] Updated database with ${imageUrls.length} result URLs`);
+              console.log(`[Generation] Updated database with ${imageUrls.length} permanent URLs`);
             }
           });
         }
@@ -609,10 +662,9 @@ async function pollForCompletion(taskId: string): Promise<void> {
         // Show toast with detailed error
         toasts.error(`Task failed: ${fullError}`);
         
+        // Don't set isGenerating to false here - caller handles it after all tasks complete
         generationState.update(s => ({
           ...s,
-          isGenerating: false,
-          progress: 'error',
           error: fullError
         }));
         

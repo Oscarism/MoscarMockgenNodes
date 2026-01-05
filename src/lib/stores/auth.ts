@@ -63,8 +63,9 @@ function createAuthStore() {
           // Load user history when they log in
           if (session?.user && _event === 'SIGNED_IN') {
             // Dynamic import to avoid circular dependency
-            const { fetchUserHistory } = await import('./generation');
+            const { fetchUserHistory, hiddenImages } = await import('./generation');
             await fetchUserHistory();
+            await hiddenImages.loadFromDatabase();
           }
         });
 

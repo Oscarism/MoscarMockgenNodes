@@ -101,6 +101,7 @@
 			`[OutputNode] Generating with ${hasEnhancement && optimizer.useEnhanced ? 'ENHANCED' : 'ORIGINAL'} prompt`
 		);
 		console.log(`[OutputNode] Batch count: ${data.batchCount || 1}`);
+		console.log(`[OutputNode] Selected models:`, selectedModels);
 		console.log(`[OutputNode] Prompt: ${promptToUse?.substring(0, 100)}...`);
 
 		// Start multi-model batch generation

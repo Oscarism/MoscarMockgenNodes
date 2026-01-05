@@ -167,3 +167,69 @@ export async function deleteGeneration(generationId: string): Promise<boolean> {
     return false;
   }
 }
+
+// ============================================
+// Hidden Images (User Settings)
+// ============================================
+
+/**
+ * Save hidden image URLs to user settings
+ */
+export async function saveHiddenImages(userId: string, hiddenUrls: string[]): Promise<boolean> {
+  if (!isSupabaseConfigured) return false;
+
+  try {
+    // Use upsert to create or update user settings
+    const { error } = await supabase
+      .from('user_settings')
+      .upsert({
+        user_id: userId,
+        hidden_images: hiddenUrls,
+        updated_at: new Date().toISOString()
+      }, {
+        onConflict: 'user_id'
+      });
+
+    if (error) {
+      console.error('[DB] Failed to save hidden images:', error);
+      return false;
+    }
+
+    console.log(`[DB] Saved ${hiddenUrls.length} hidden images for user`);
+    return true;
+  } catch (error) {
+    console.error('[DB] Save hidden images error:', error);
+    return false;
+  }
+}
+
+/**
+ * Load hidden image URLs from user settings
+ */
+export async function loadHiddenImages(userId: string): Promise<string[]> {
+  if (!isSupabaseConfigured) return [];
+
+  try {
+    const { data, error } = await supabase
+      .from('user_settings')
+      .select('hidden_images')
+      .eq('user_id', userId)
+      .single();
+
+    if (error) {
+      // No settings yet - not an error, just empty
+      if (error.code === 'PGRST116') {
+        return [];
+      }
+      console.error('[DB] Failed to load hidden images:', error);
+      return [];
+    }
+
+    const hiddenUrls = data?.hidden_images || [];
+    console.log(`[DB] Loaded ${hiddenUrls.length} hidden images for user`);
+    return hiddenUrls;
+  } catch (error) {
+    console.error('[DB] Load hidden images error:', error);
+    return [];
+  }
+}

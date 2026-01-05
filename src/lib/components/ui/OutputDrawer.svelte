@@ -168,7 +168,7 @@
 	<header class="drawer-header">
 		<div class="header-left">
 			<h3>Generated Images</h3>
-			<span class="count">{images.length}{hidden.size > 0 ? ` (${hidden.size} hidden)` : ''}</span>
+			<span class="count">{images.length}</span>
 		</div>
 		<div class="header-right">
 			{#if mode === 'expanded'}

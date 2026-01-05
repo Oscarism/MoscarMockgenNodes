@@ -100,110 +100,31 @@
 		};
 		return labels[modelId] || modelId;
 	}
-
-	// Refs for animation
-	let rowEls: HTMLLIElement[] = [];
-	let timelines: any[] = [];
-	let lastIndexEntered = 0;
-	let isInitialized = false;
-
-	// Initialize timelines after GSAP loads and rows render
-	function initializeTimelines() {
-		if (!gsap || isInitialized || rowEls.length === 0) return;
-
-		console.log('[WeeklyHistoryList] Initializing timelines for', rowEls.length, 'rows');
-
-		timelines = rowEls.map((rowEl, index) => {
-			if (!rowEl) return null;
-
-			const medias = rowEl.querySelectorAll('.media');
-			const tl = gsap.timeline({ paused: index !== 0 });
-
-			tl.to(medias, {
-				y: 0,
-				opacity: 1,
-				stagger: {
-					each: 0.04,
-					from: 'random'
-				},
-				duration: 0.4,
-				ease: 'power4.out'
-			});
-
-			return tl;
-		});
-
-		isInitialized = true;
-	}
-
-	// Handle row hover with timelines
-	function handleRowEnter(index: number, rowEl: HTMLLIElement) {
-		if (!gsap) return;
-
-		// Initialize if not done yet
-		if (!isInitialized) initializeTimelines();
-
-		// Reverse the previously active row's media (fast reverse)
-		if (timelines[lastIndexEntered]) {
-			timelines[lastIndexEntered].timeScale(3).reverse();
-		}
-
-		// Update last entered index
-		lastIndexEntered = index;
-
-		// Play this row's media timeline (normal speed)
-		if (timelines[index]) {
-			timelines[index].timeScale(1).play();
-		}
-
-		// Collapse all rows, expand this one
-		gsap.to(rowEls.filter(Boolean), {
-			flex: '1 1 50px',
-			duration: 0.2,
-			ease: 'power2.inOut'
-		});
-
-		gsap.to(rowEl, {
-			flex: '1 1 130px',
-			duration: 0.2,
-			ease: 'power2.inOut'
-		});
-	}
-
-	// Optional: handle mouse leave (keep row expanded until another is entered)
-	function handleRowLeave(index: number, rowEl: HTMLLIElement) {
-		// No action needed - row stays expanded until another is moused over
-	}
 </script>
 
 <div class="weekly-list">
-	<p class="section-label">Previous Generations</p>
-	<ul>
-		{#each weekGroups as week, i}
-			<li
-				bind:this={rowEls[i]}
-				onmouseenter={(e) => handleRowEnter(i, e.currentTarget)}
-				onmouseleave={(e) => handleRowLeave(i, e.currentTarget)}
-			>
+	{#each weekGroups as week}
+		<div class="week-section">
+			<div class="week-header">
 				<span class="week-label">{week.label}</span>
-				<span class="count">{week.images.length}</span>
-				<span class="medias">
-					{#each week.images.slice(0, 8) as img, j}
-						<button
-							class="media"
-							onclick={() => onImageClick(img.url, img.record)}
-							aria-label="View image from {week.label}"
-						>
-							<img src={img.url} alt="Generation thumbnail" loading="lazy" />
-						</button>
-					{/each}
-					{#if week.images.length > 8}
-						<span class="more-count">+{week.images.length - 8}</span>
-					{/if}
-				</span>
-			</li>
-		{/each}
-	</ul>
+				<span class="count">{week.images.length} images</span>
+			</div>
+			<div class="image-grid">
+				{#each week.images as img}
+					<button
+						class="image-card"
+						onclick={() => onImageClick(img.url, img.record)}
+						aria-label="View image from {week.label}"
+					>
+						<img src={img.url} alt="Generation thumbnail" loading="lazy" />
+						{#if img.record.model}
+							<span class="model-tag">{getModelLabel(img.record.model)}</span>
+						{/if}
+					</button>
+				{/each}
+			</div>
+		</div>
+	{/each}
 
 	{#if hasMore && onLoadMore}
 		<button class="load-more-btn" onclick={onLoadMore}> Load More </button>
@@ -212,109 +133,87 @@
 
 <style>
 	.weekly-list {
-		padding: 0;
+		padding: 0 20px;
 		font-family: var(--font-primary, 'DM Sans', sans-serif);
 	}
 
-	.section-label {
-		padding: 16px 24px 8px;
-		font-size: 12px;
-		font-weight: 500;
-		text-transform: uppercase;
-		letter-spacing: 1px;
-		color: var(--color-text-muted, #666);
-		opacity: 0.6;
+	.week-section {
+		margin-top: 24px;
 	}
 
-	ul {
-		list-style: none;
-		margin: 0;
-		padding: 0;
-		border-bottom: 1px solid rgba(201, 254, 110, 0.2);
-	}
-
-	li {
-		flex: 1 1 50px;
+	.week-header {
 		display: flex;
 		align-items: center;
-		gap: 16px;
-		padding: 0 24px;
-		border-top: 1px solid rgba(201, 254, 110, 0.2);
-		overflow: hidden;
-		transition: flex 0.3s ease;
-	}
-
-	li:first-child {
-		flex: 1 1 130px;
+		gap: 12px;
+		padding-bottom: 12px;
+		border-bottom: 1px solid rgba(201, 254, 110, 0.2);
+		margin-bottom: 16px;
 	}
 
 	.week-label {
 		font-size: 14px;
-		font-weight: 500;
+		font-weight: 600;
 		color: var(--color-text-primary, #fff);
-		min-width: 120px;
 	}
 
 	.count {
 		font-size: 12px;
 		color: var(--color-text-muted, #666);
-		padding: 2px 8px;
+		padding: 2px 10px;
 		background: rgba(255, 255, 255, 0.05);
 		border-radius: 10px;
 	}
 
-	.medias {
-		display: flex;
-		gap: 10px;
-		margin-left: auto;
-		overflow: hidden;
+	.image-grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+		gap: 12px;
 	}
 
-	.media {
-		width: 80px;
-		height: 80px;
+	.image-card {
+		position: relative;
+		aspect-ratio: 1;
 		border: none;
 		padding: 0;
 		background: transparent;
 		cursor: pointer;
-		transform: translateY(100%);
-		opacity: 0;
-		transition: transform 0.3s ease;
+		border-radius: 8px;
+		overflow: hidden;
+		transition:
+			transform 0.2s ease,
+			box-shadow 0.2s ease;
 	}
 
-	.media img {
+	.image-card:hover {
+		transform: scale(1.03);
+		box-shadow: 0 8px 24px rgba(201, 254, 110, 0.15);
+	}
+
+	.image-card img {
 		width: 100%;
 		height: 100%;
 		object-fit: cover;
-		border-radius: 6px;
 	}
 
-	.media:hover img {
-		opacity: 0.8;
-	}
-
-	li:first-child .media {
-		transform: translateY(0);
-		opacity: 1;
-	}
-
-	.more-count {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		width: 80px;
-		height: 80px;
-		background: rgba(255, 255, 255, 0.05);
-		border-radius: 6px;
-		font-size: 14px;
+	.model-tag {
+		position: absolute;
+		bottom: 6px;
+		left: 6px;
+		padding: 3px 6px;
+		background: rgba(18, 18, 18, 0.85);
+		backdrop-filter: blur(4px);
+		border-radius: 4px;
+		font-size: 10px;
 		font-weight: 600;
-		color: var(--color-text-secondary, #888);
+		color: var(--color-node-product, #c9fe6e);
+		text-transform: uppercase;
+		letter-spacing: 0.3px;
 	}
 
 	.load-more-btn {
 		display: block;
-		width: calc(100% - 48px);
-		margin: 16px 24px;
+		width: 100%;
+		margin: 24px 0;
 		padding: 12px;
 		background: rgba(255, 255, 255, 0.05);
 		border: 1px solid rgba(201, 254, 110, 0.2);
