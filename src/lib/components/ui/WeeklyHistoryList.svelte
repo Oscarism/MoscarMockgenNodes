@@ -1,92 +1,27 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
 	import type { GenerationRecord } from '$lib/types';
-
-	// Dynamic GSAP import (only in browser)
-	let gsap: any;
-
-	onMount(async () => {
-		const gsapModule = await import('gsap');
-		gsap = gsapModule.gsap;
-	});
 
 	interface Props {
 		records: GenerationRecord[];
 		onImageClick: (url: string, record: GenerationRecord) => void;
-		onLoadMore?: () => void;
-		hasMore?: boolean;
 	}
 
-	let { records, onImageClick, onLoadMore, hasMore = false }: Props = $props();
+	let { records, onImageClick }: Props = $props();
 
-	// Group records by week
-	interface WeekGroup {
-		label: string;
-		startDate: Date;
-		images: { url: string; record: GenerationRecord }[];
-	}
-
-	let weekGroups = $derived.by((): WeekGroup[] => {
-		const groups = new Map<string, WeekGroup>();
+	// Flatten all images from records (skip first 20 since MasonryGrid shows those)
+	let allImages = $derived.by(() => {
+		const images: { url: string; record: GenerationRecord }[] = [];
 
 		for (const record of records) {
 			if (!record.resultUrls?.length) continue;
-
-			const date = new Date(record.timestamp);
-			const weekStart = getWeekStart(date);
-			const weekEnd = new Date(weekStart);
-			weekEnd.setDate(weekEnd.getDate() + 6);
-
-			const key = weekStart.toISOString();
-			const label = formatWeekLabel(weekStart, weekEnd);
-
-			if (!groups.has(key)) {
-				groups.set(key, { label, startDate: weekStart, images: [] });
-			}
-
 			for (const url of record.resultUrls) {
-				groups.get(key)!.images.push({ url, record });
+				images.push({ url, record });
 			}
 		}
 
-		// Sort by date descending
-		return Array.from(groups.values()).sort(
-			(a, b) => b.startDate.getTime() - a.startDate.getTime()
-		);
+		// Skip first 20 (shown in MasonryGrid), return rest
+		return images.slice(20);
 	});
-
-	function getWeekStart(date: Date): Date {
-		const d = new Date(date);
-		const day = d.getDay();
-		const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-		d.setDate(diff);
-		d.setHours(0, 0, 0, 0);
-		return d;
-	}
-
-	function formatWeekLabel(start: Date, end: Date): string {
-		const months = [
-			'Jan',
-			'Feb',
-			'Mar',
-			'Apr',
-			'May',
-			'Jun',
-			'Jul',
-			'Aug',
-			'Sep',
-			'Oct',
-			'Nov',
-			'Dec'
-		];
-		const startMonth = months[start.getMonth()];
-		const endMonth = months[end.getMonth()];
-
-		if (startMonth === endMonth) {
-			return `${startMonth} ${start.getDate()} - ${end.getDate()}`;
-		}
-		return `${startMonth} ${start.getDate()} - ${endMonth} ${end.getDate()}`;
-	}
 
 	// Helper to get friendly model name
 	function getModelLabel(modelId: string | undefined): string {
@@ -102,72 +37,62 @@
 	}
 </script>
 
-<div class="weekly-list">
-	{#each weekGroups as week}
-		<div class="week-section">
-			<div class="week-header">
-				<span class="week-label">{week.label}</span>
-				<span class="count">{week.images.length} images</span>
-			</div>
-			<div class="image-grid">
-				{#each week.images as img}
-					<button
-						class="image-card"
-						onclick={() => onImageClick(img.url, img.record)}
-						aria-label="View image from {week.label}"
-					>
-						<img src={img.url} alt="Generation thumbnail" loading="lazy" />
-						{#if img.record.model}
-							<span class="model-tag">{getModelLabel(img.record.model)}</span>
-						{/if}
-					</button>
-				{/each}
-			</div>
+{#if allImages.length > 0}
+	<div class="history-section">
+		<div class="section-header">
+			<span class="label">Previous Generations</span>
+			<span class="count">{allImages.length}</span>
 		</div>
-	{/each}
-
-	{#if hasMore && onLoadMore}
-		<button class="load-more-btn" onclick={onLoadMore}> Load More </button>
-	{/if}
-</div>
+		<div class="image-grid">
+			{#each allImages as img}
+				<button
+					class="image-card"
+					onclick={() => onImageClick(img.url, img.record)}
+					aria-label="View image"
+				>
+					<img src={img.url} alt="Generation" loading="lazy" />
+					{#if img.record.model}
+						<span class="model-tag">{getModelLabel(img.record.model)}</span>
+					{/if}
+				</button>
+			{/each}
+		</div>
+	</div>
+{/if}
 
 <style>
-	.weekly-list {
-		padding: 0 20px;
-		font-family: var(--font-primary, 'DM Sans', sans-serif);
+	.history-section {
+		padding: 0 16px 24px;
 	}
 
-	.week-section {
-		margin-top: 24px;
-	}
-
-	.week-header {
+	.section-header {
 		display: flex;
 		align-items: center;
-		gap: 12px;
-		padding-bottom: 12px;
-		border-bottom: 1px solid rgba(201, 254, 110, 0.2);
-		margin-bottom: 16px;
+		gap: 10px;
+		padding: 16px 0 12px;
+		border-top: 1px solid rgba(255, 255, 255, 0.08);
 	}
 
-	.week-label {
-		font-size: 14px;
-		font-weight: 600;
-		color: var(--color-text-primary, #fff);
+	.label {
+		font-size: 13px;
+		font-weight: 500;
+		text-transform: uppercase;
+		letter-spacing: 0.5px;
+		color: var(--color-text-muted, #666);
 	}
 
 	.count {
-		font-size: 12px;
-		color: var(--color-text-muted, #666);
-		padding: 2px 10px;
+		font-size: 11px;
+		color: var(--color-text-muted, #888);
+		padding: 2px 8px;
 		background: rgba(255, 255, 255, 0.05);
 		border-radius: 10px;
 	}
 
 	.image-grid {
 		display: grid;
-		grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-		gap: 12px;
+		grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+		gap: 10px;
 	}
 
 	.image-card {
@@ -175,7 +100,7 @@
 		aspect-ratio: 1;
 		border: none;
 		padding: 0;
-		background: transparent;
+		background: rgba(255, 255, 255, 0.03);
 		cursor: pointer;
 		border-radius: 8px;
 		overflow: hidden;
@@ -186,7 +111,7 @@
 
 	.image-card:hover {
 		transform: scale(1.03);
-		box-shadow: 0 8px 24px rgba(201, 254, 110, 0.15);
+		box-shadow: 0 6px 20px rgba(201, 254, 110, 0.12);
 	}
 
 	.image-card img {
@@ -197,36 +122,16 @@
 
 	.model-tag {
 		position: absolute;
-		bottom: 6px;
-		left: 6px;
-		padding: 3px 6px;
-		background: rgba(18, 18, 18, 0.85);
+		bottom: 4px;
+		left: 4px;
+		padding: 2px 5px;
+		background: rgba(18, 18, 18, 0.8);
 		backdrop-filter: blur(4px);
-		border-radius: 4px;
-		font-size: 10px;
+		border-radius: 3px;
+		font-size: 9px;
 		font-weight: 600;
 		color: var(--color-node-product, #c9fe6e);
 		text-transform: uppercase;
 		letter-spacing: 0.3px;
-	}
-
-	.load-more-btn {
-		display: block;
-		width: 100%;
-		margin: 24px 0;
-		padding: 12px;
-		background: rgba(255, 255, 255, 0.05);
-		border: 1px solid rgba(201, 254, 110, 0.2);
-		border-radius: 8px;
-		color: var(--color-text-primary, #fff);
-		font-size: 14px;
-		font-weight: 500;
-		cursor: pointer;
-		transition: all 0.2s ease;
-	}
-
-	.load-more-btn:hover {
-		background: rgba(201, 254, 110, 0.1);
-		border-color: var(--color-node-product, #c9fe6e);
 	}
 </style>

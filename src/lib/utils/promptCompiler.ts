@@ -538,6 +538,11 @@ export function compilePrompt(
   
   // Compile each node
   for (const node of connectedNodes) {
+    // Skip bypassed nodes
+    if ((node.data as any)._bypassed === true) {
+      continue;
+    }
+    
     let content = '';
     
     switch (node.data.type) {

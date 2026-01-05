@@ -25,7 +25,7 @@
 		updateNodeData(id, { [field]: value });
 	}
 
-	function handleGenderChange(gender: 'male' | 'female') {
+	function handleGenderChange(gender: 'male' | 'female' | '') {
 		updateNodeData(id, { gender });
 	}
 </script>
@@ -33,6 +33,9 @@
 <BaseNode {id} nodeType="human">
 	<!-- Gender Toggle -->
 	<div class="gender-toggle">
+		<button class="gender-btn" class:active={!data.gender} onclick={() => handleGenderChange('')}>
+			Any
+		</button>
 		<button
 			class="gender-btn"
 			class:active={data.gender === 'female'}
@@ -55,9 +58,10 @@
 			<label for="ethnicity-{id}">Ethnicity</label>
 			<select
 				id="ethnicity-{id}"
-				value={data.ethnicity}
+				value={data.ethnicity || ''}
 				onchange={(e) => handleChange('ethnicity', (e.target as HTMLSelectElement).value)}
 			>
+				<option value="">Any</option>
 				{#each ethnicities as eth}
 					<option value={eth}>{eth}</option>
 				{/each}
@@ -69,9 +73,10 @@
 			<label for="age-{id}">Age Range</label>
 			<select
 				id="age-{id}"
-				value={data.ageRange}
+				value={data.ageRange || ''}
 				onchange={(e) => handleChange('ageRange', (e.target as HTMLSelectElement).value)}
 			>
+				<option value="">Any</option>
 				{#each ageRanges as age}
 					<option value={age}>{age}</option>
 				{/each}
@@ -83,9 +88,10 @@
 			<label for="body-{id}">Body Type</label>
 			<select
 				id="body-{id}"
-				value={data.bodyType}
+				value={data.bodyType || ''}
 				onchange={(e) => handleChange('bodyType', (e.target as HTMLSelectElement).value)}
 			>
+				<option value="">Any</option>
 				{#each bodyTypes as type}
 					<option value={type}>{type}</option>
 				{/each}
@@ -97,9 +103,10 @@
 			<label for="pose-{id}">Pose</label>
 			<select
 				id="pose-{id}"
-				value={data.pose}
+				value={data.pose || ''}
 				onchange={(e) => handleChange('pose', (e.target as HTMLSelectElement).value)}
 			>
+				<option value="">Any</option>
 				{#each poses as pose}
 					<option value={pose}>{pose}</option>
 				{/each}
@@ -111,9 +118,10 @@
 			<label for="expr-{id}">Expression</label>
 			<select
 				id="expr-{id}"
-				value={data.expression}
+				value={data.expression || ''}
 				onchange={(e) => handleChange('expression', (e.target as HTMLSelectElement).value)}
 			>
+				<option value="">Any</option>
 				{#each expressions as expr}
 					<option value={expr}>{expr}</option>
 				{/each}
@@ -125,9 +133,10 @@
 			<label for="hairstyle-{id}">Hair Style</label>
 			<select
 				id="hairstyle-{id}"
-				value={data.hairStyle}
+				value={data.hairStyle || ''}
 				onchange={(e) => handleChange('hairStyle', (e.target as HTMLSelectElement).value)}
 			>
+				<option value="">Any</option>
 				{#each hairStyles as style}
 					<option value={style}>{style}</option>
 				{/each}
@@ -139,9 +148,10 @@
 			<label for="haircolor-{id}">Hair Color</label>
 			<select
 				id="haircolor-{id}"
-				value={data.hairColor}
+				value={data.hairColor || ''}
 				onchange={(e) => handleChange('hairColor', (e.target as HTMLSelectElement).value)}
 			>
+				<option value="">Any</option>
 				{#each hairColors as color}
 					<option value={color}>{color}</option>
 				{/each}
@@ -153,9 +163,10 @@
 			<label for="imperfections-{id}">Skin Features</label>
 			<select
 				id="imperfections-{id}"
-				value={data.skinImperfections}
+				value={data.skinImperfections || ''}
 				onchange={(e) => handleChange('skinImperfections', (e.target as HTMLSelectElement).value)}
 			>
+				<option value="">Any</option>
 				{#each skinImperfections as imp}
 					<option value={imp}>{imp}</option>
 				{/each}
@@ -167,6 +178,13 @@
 	<div class="field skin-field">
 		<label>Skin Tone</label>
 		<div class="skin-swatches">
+			<button
+				class="skin-swatch any-swatch"
+				class:active={!data.skinTone}
+				onclick={() => handleChange('skinTone', '')}
+				title="Any"
+				aria-label="Any skin tone">?</button
+			>
 			{#each skinTones as tone}
 				<button
 					class="skin-swatch"
@@ -186,7 +204,7 @@
 		<textarea
 			id="custom-{id}"
 			class="nodrag"
-			value={data.customPrompt}
+			value={data.customPrompt || ''}
 			oninput={(e) => handleChange('customPrompt', (e.target as HTMLTextAreaElement).value)}
 			placeholder="Add custom details..."
 			rows={2}
@@ -280,5 +298,22 @@
 	.skin-swatch.active {
 		border-color: var(--color-node-human);
 		box-shadow: 0 0 0 2px var(--color-bg-ui);
+	}
+
+	.any-swatch {
+		background-color: var(--color-bg-canvas);
+		border: 2px dashed var(--color-text-muted);
+		font-size: 12px;
+		font-weight: bold;
+		color: var(--color-text-muted);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+	}
+
+	.any-swatch.active {
+		border-style: solid;
+		border-color: var(--color-node-human);
+		color: var(--color-node-human);
 	}
 </style>

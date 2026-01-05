@@ -43,7 +43,8 @@ export const clothingStyles = [
 	'Hip Hop',
 	'Preppy',
 	'Sporty',
-	'Traditional'
+	'Traditional',
+	'Fresh'
 ];
 
 export const clothingColors = [

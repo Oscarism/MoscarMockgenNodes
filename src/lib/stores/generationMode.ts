@@ -73,7 +73,7 @@ export const PHOTOGRAPHY_PRESETS: Record<PhotographyPreset, PromptPreset> = {
   },
   fashion: {
     prefix: ['High-end fashion photography', 'editorial style'],
-    suffix: ['professional lighting', 'stylish composition', 'model quality', 'magazine worthy']
+    suffix: ['professional lighting', 'stylish composition']
   },
   food: {
     prefix: ['Professional food photography', 'appetizing presentation'],

@@ -106,6 +106,44 @@ export function removeNode(nodeId: string): void {
 }
 
 /**
+ * Reset a node to its default values
+ */
+export function resetNode(nodeId: string): void {
+  nodes.update(currentNodes => {
+    return currentNodes.map(node => {
+      if (node.id !== nodeId) return node;
+      
+      const nodeType = node.type as NodeType;
+      const defaultData = { ...DEFAULT_NODE_DATA[nodeType] } as PromptNodeData;
+      
+      return {
+        ...node,
+        data: defaultData
+      };
+    });
+  });
+}
+
+/**
+ * Toggle bypass state for a node (excluded from prompt compilation)
+ */
+export function toggleBypass(nodeId: string): void {
+  nodes.update(currentNodes => {
+    return currentNodes.map(node => {
+      if (node.id !== nodeId) return node;
+      
+      return {
+        ...node,
+        data: { 
+          ...node.data, 
+          _bypassed: !(node.data as any)._bypassed 
+        } as PromptNodeData
+      };
+    });
+  });
+}
+
+/**
  * Add an edge connection between nodes
  */
 export function addEdge(sourceId: string, targetId: string): void {
@@ -183,6 +221,19 @@ export const connectedToOutput = derived([nodes, edges], ([$nodes, $edges]) => {
   }
   
   return connected;
+});
+
+/**
+ * Set of bypassed node IDs
+ */
+export const bypassedNodes = derived(nodes, $nodes => {
+  const bypassed = new Set<string>();
+  for (const node of $nodes) {
+    if ((node.data as any)._bypassed === true) {
+      bypassed.add(node.id);
+    }
+  }
+  return bypassed;
 });
 
 /**

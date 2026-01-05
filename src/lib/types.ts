@@ -125,7 +125,7 @@ export interface ImageUploadNodeData {
 
 export interface HumanNodeData {
 	type: 'human';
-	gender: 'male' | 'female';
+	gender: 'male' | 'female' | '';
 	ethnicity: string;
 	ageRange: string;
 	bodyType: string;
@@ -446,16 +446,16 @@ export const DEFAULT_NODE_DATA: Record<NodeType, PromptNodeData> = {
 	},
 	human: {
 		type: 'human',
-		gender: 'female',
-		ethnicity: 'Caucasian',
-		ageRange: 'Young Adult (20-29)',
-		bodyType: 'Average',
-		pose: 'Standing',
-		expression: 'Neutral',
-		hairStyle: 'Long',
-		hairColor: 'Brown',
-		skinTone: 'medium',
-		skinImperfections: 'None',
+		gender: '',
+		ethnicity: '',
+		ageRange: '',
+		bodyType: '',
+		pose: '',
+		expression: '',
+		hairStyle: '',
+		hairColor: '',
+		skinTone: '',
+		skinImperfections: '',
 		customPrompt: ''
 	},
 	clothing: {
