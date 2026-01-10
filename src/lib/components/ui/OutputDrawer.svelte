@@ -62,7 +62,9 @@
 			'seedream/4.5-edit': 'Seedream Edit',
 			'z-image': 'Z-Image',
 			'flux-2/pro-image-to-image': 'Flux I2I',
-			'nano-banana-pro': 'Nano Banana'
+			'nano-banana-pro': 'Nano Banana',
+			upscale: 'Upscale',
+			'comfyui-upscale': 'Upscale'
 		};
 		return labels[modelId] || modelId;
 	}

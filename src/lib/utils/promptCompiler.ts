@@ -24,7 +24,12 @@ import type {
   BackgroundNodeData,
   PhotographyNodeData,
   BatchProcessorNodeData,
-  BatchImage
+  BatchImage,
+  AnimalNodeData,
+  AccessoryNodeData,
+  ExpressionNodeData,
+  FurnitureNodeData,
+  ReferenceImageNodeData
 } from '$lib/types';
 import { productCategories, getProductsByCategory } from '$lib/data/products';
 import { 
@@ -39,6 +44,23 @@ import {
   plantPresets,
   texturePresets
 } from '$lib/data/presets';
+import { 
+  animalSpecies, dogBreeds, catBreeds, animalAges, 
+  animalBehaviors, coatColors, coatTypes, petAccessories 
+} from '$lib/data/animals';
+import { 
+  accessoryCategories, accessoryMaterials, 
+  accessoryStyles, accessoryPlacements 
+} from '$lib/data/accessories';
+import { 
+  moodPresets, smilePresets, eyeContactPresets, 
+  energyPresets, eyebrowPresets, mouthPresets, headPositionPresets 
+} from '$lib/data/expressions';
+import { 
+  furnitureCategories, furnitureStyles, 
+  furnitureMaterials, furnitureSettings 
+} from '$lib/data/furniture';
+import { allReferenceLabels } from '$lib/data/referenceLabels';
 import { 
   type GenerationMode, 
   type PhotographyPreset,
@@ -476,6 +498,172 @@ function compilePhotographySegment(data: PhotographyNodeData): string {
   return parts.join(', ');
 }
 
+function compileAnimalSegment(data: AnimalNodeData): string {
+  const parts: string[] = [];
+  
+  // Age
+  const age = animalAges.find(a => a.id === data.age);
+  if (age) parts.push(age.prompt);
+  
+  // Coat color
+  const color = coatColors.find(c => c.id === data.coatColor);
+  if (color) parts.push(color.prompt);
+  
+  // Coat type
+  const coat = coatTypes.find(c => c.id === data.coatType);
+  if (coat) parts.push(coat.prompt);
+  
+  // Species and breed
+  if (data.species === 'dog' && data.breed) {
+    const breed = dogBreeds.find(b => b.id === data.breed);
+    if (breed) parts.push(breed.prompt);
+  } else if (data.species === 'cat' && data.breed) {
+    const breed = catBreeds.find(b => b.id === data.breed);
+    if (breed) parts.push(breed.prompt);
+  } else {
+    const species = animalSpecies.find(s => s.id === data.species);
+    if (species) parts.push(species.prompt);
+  }
+  
+  // Behavior
+  const behavior = animalBehaviors.find(b => b.id === data.behavior);
+  if (behavior) parts.push(behavior.prompt);
+  
+  // Accessory
+  if (data.accessory) {
+    const acc = petAccessories.find(a => a.id === data.accessory);
+    if (acc) parts.push(acc.prompt);
+  }
+  
+  // Custom prompt
+  if (data.customPrompt?.trim()) {
+    parts.push(data.customPrompt.trim());
+  }
+  
+  return parts.join(', ');
+}
+
+function compileAccessorySegment(data: AccessoryNodeData): string {
+  const parts: string[] = [];
+  
+  // Material
+  const material = accessoryMaterials.find(m => m.id === data.material);
+  if (material) parts.push(material.prompt);
+  
+  // Style
+  const style = accessoryStyles.find(s => s.id === data.style);
+  if (style) parts.push(style.prompt);
+  
+  // Item from category
+  const category = accessoryCategories.find(c => c.id === data.category);
+  if (category) {
+    const item = category.items.find(i => i.id === data.item);
+    if (item) parts.push(item.prompt);
+  }
+  
+  // Placement
+  const placement = accessoryPlacements.find(p => p.id === data.placement);
+  if (placement) parts.push(placement.prompt);
+  
+  // Custom prompt
+  if (data.customPrompt?.trim()) {
+    parts.push(data.customPrompt.trim());
+  }
+  
+  return parts.join(', ');
+}
+
+function compileExpressionSegment(data: ExpressionNodeData): string {
+  const parts: string[] = [];
+  
+  // Mood
+  const mood = moodPresets.find(m => m.id === data.mood);
+  if (mood) parts.push(mood.prompt);
+  
+  // Smile
+  const smile = smilePresets.find(s => s.id === data.smile);
+  if (smile) parts.push(smile.prompt);
+  
+  // Eye contact
+  const eye = eyeContactPresets.find(e => e.id === data.eyeContact);
+  if (eye) parts.push(eye.prompt);
+  
+  // Energy
+  const energy = energyPresets.find(e => e.id === data.energy);
+  if (energy) parts.push(energy.prompt);
+  
+  // Eyebrows
+  const brow = eyebrowPresets.find(b => b.id === data.eyebrows);
+  if (brow) parts.push(brow.prompt);
+  
+  // Mouth
+  const mouth = mouthPresets.find(m => m.id === data.mouthPosition);
+  if (mouth) parts.push(mouth.prompt);
+  
+  // Head position
+  const head = headPositionPresets.find(h => h.id === data.headPosition);
+  if (head) parts.push(head.prompt);
+  
+  // Custom prompt
+  if (data.customPrompt?.trim()) {
+    parts.push(data.customPrompt.trim());
+  }
+  
+  return parts.join(', ');
+}
+
+function compileFurnitureSegment(data: FurnitureNodeData): string {
+  const parts: string[] = [];
+  
+  // Style
+  const style = furnitureStyles.find(s => s.id === data.style);
+  if (style) parts.push(style.prompt);
+  
+  // Material
+  const material = furnitureMaterials.find(m => m.id === data.material);
+  if (material) parts.push(material.prompt);
+  
+  // Item from category
+  const category = furnitureCategories.find(c => c.id === data.category);
+  if (category) {
+    const item = category.items.find(i => i.id === data.item);
+    if (item) parts.push(item.prompt);
+  }
+  
+  // Setting
+  const setting = furnitureSettings.find(s => s.id === data.setting);
+  if (setting) parts.push(setting.prompt);
+  
+  // Custom prompt
+  if (data.customPrompt?.trim()) {
+    parts.push(data.customPrompt.trim());
+  }
+  
+  return parts.join(', ');
+}
+
+function compileReferenceSegment(data: ReferenceImageNodeData): string {
+  const parts: string[] = [];
+  
+  // Add label prompts for each uploaded image
+  for (let i = 0; i < data.images.length; i++) {
+    const image = data.images[i];
+    if (image?.hostedUrl || image?.previewUrl) {
+      const label = allReferenceLabels.find(l => l.id === image.label);
+      if (label) {
+        parts.push(`image ${i + 1}: ${label.prompt}`);
+      }
+    }
+  }
+  
+  // Custom prompt
+  if (data.customPrompt?.trim()) {
+    parts.push(data.customPrompt.trim());
+  }
+  
+  return parts.join(', ');
+}
+
 // ============================================
 // Quality Descriptors - NOW MODE-AWARE
 // These are kept for backwards compatibility but
@@ -598,6 +786,21 @@ export function compilePrompt(
         break;
       case 'photography':
         content = compilePhotographySegment(node.data as PhotographyNodeData);
+        break;
+      case 'animal':
+        content = compileAnimalSegment(node.data as AnimalNodeData);
+        break;
+      case 'accessory':
+        content = compileAccessorySegment(node.data as AccessoryNodeData);
+        break;
+      case 'expression':
+        content = compileExpressionSegment(node.data as ExpressionNodeData);
+        break;
+      case 'furniture':
+        content = compileFurnitureSegment(node.data as FurnitureNodeData);
+        break;
+      case 'reference':
+        content = compileReferenceSegment(node.data as ReferenceImageNodeData);
         break;
       // Quality node doesn't add to prompt text, only affects API params
     }
@@ -732,6 +935,8 @@ export function getUploadedImageUrls(
   }
   
   const connectedNodeIds = getConnectedNodeIds(outputNode.id, edges);
+  
+  // Get URLs from Image Upload nodes
   const imageNodes = nodes.filter(
     n => connectedNodeIds.has(n.id) && n.data.type === 'image'
   );
@@ -739,6 +944,20 @@ export function getUploadedImageUrls(
   const urls: string[] = [];
   for (const node of imageNodes) {
     const data = node.data as ImageUploadNodeData;
+    for (const slot of data.images) {
+      if (slot && slot.hostedUrl) {
+        urls.push(slot.hostedUrl);
+      }
+    }
+  }
+  
+  // Also get URLs from Reference Image nodes
+  const referenceNodes = nodes.filter(
+    n => connectedNodeIds.has(n.id) && n.data.type === 'reference'
+  );
+  
+  for (const node of referenceNodes) {
+    const data = node.data as ReferenceImageNodeData;
     for (const slot of data.images) {
       if (slot && slot.hostedUrl) {
         urls.push(slot.hostedUrl);

@@ -28,7 +28,14 @@ export type NodeType =
 	| 'pose'
 	| 'background'
 	| 'photography'
-	| 'batch';
+	| 'batch'
+	| 'animal'
+	| 'accessory'
+	| 'expression'
+	| 'furniture'
+	| 'reference'
+	| 'upscale'
+	| 'compare';
 
 // ============================================
 // Node Data Types
@@ -202,6 +209,83 @@ export interface BatchProcessorNodeData {
 	prompt?: string;
 }
 
+export interface AnimalNodeData {
+	type: 'animal';
+	species: string;
+	breed?: string;
+	age: string;
+	behavior: string;
+	coatColor: string;
+	coatType: string;
+	accessory?: string;
+	customPrompt?: string;
+}
+
+export interface AccessoryNodeData {
+	type: 'accessory';
+	category: string;
+	item: string;
+	material: string;
+	style: string;
+	placement: string;
+	customPrompt?: string;
+}
+
+export interface ExpressionNodeData {
+	type: 'expression';
+	mood: string;
+	smile: string;
+	eyeContact: string;
+	energy: string;
+	eyebrows: string;
+	mouthPosition: string;
+	headPosition: string;
+	customPrompt?: string;
+}
+
+export interface FurnitureNodeData {
+	type: 'furniture';
+	category: string;
+	item: string;
+	style: string;
+	material: string;
+	setting: string;
+	customPrompt?: string;
+}
+
+export interface ReferenceImage {
+	file?: File;
+	previewUrl: string;
+	hostedUrl?: string;
+	isUploading: boolean;
+	label: string;
+}
+
+export interface ReferenceImageNodeData {
+	type: 'reference';
+	images: ReferenceImage[];
+	customPrompt?: string;
+}
+
+export interface UpscaleNodeData {
+	type: 'upscale';
+	inputImageUrl?: string;
+	inputFile?: File;
+	resolution: 4000 | 5000 | 6000;
+	status: 'idle' | 'uploading' | 'processing' | 'complete' | 'error';
+	progress: string;
+	progressPercent: number;
+	outputImageUrl?: string;
+	error?: string;
+}
+
+export interface CompareNodeData {
+	type: 'compare';
+	originalImageUrl?: string;
+	upscaledImageUrl?: string;
+	sliderPosition: number;
+}
+
 // Image slot colors for up to 8 images
 export const IMAGE_SLOT_COLORS = [
 	'#FF6B6B', // Red
@@ -235,7 +319,14 @@ export type PromptNodeData =
 	| PoseNodeData
 	| BackgroundNodeData
 	| PhotographyNodeData
-	| BatchProcessorNodeData;
+	| BatchProcessorNodeData
+	| AnimalNodeData
+	| AccessoryNodeData
+	| ExpressionNodeData
+	| FurnitureNodeData
+	| ReferenceImageNodeData
+	| UpscaleNodeData
+	| CompareNodeData;
 
 // ============================================
 // XYFlow Node Types
@@ -353,7 +444,14 @@ export const NODE_COLORS: Record<NodeType, string> = {
 	pose: '#E91E63', // Pink/Magenta
 	background: '#607D8B', // Blue Grey
 	photography: '#3498db', // Bright Blue
-	batch: '#FF9F43' // Orange
+	batch: '#FF9F43', // Orange
+	animal: '#8B4513', // SaddleBrown
+	accessory: '#DAA520', // Goldenrod
+	expression: '#FF69B4', // HotPink
+	furniture: '#CD853F', // Peru
+	reference: '#9370DB', // MediumPurple
+	upscale: '#00CED1', // DarkTurquoise
+	compare: '#32CD32' // LimeGreen
 };
 
 // ============================================
@@ -379,7 +477,14 @@ export const NODE_NAMES: Record<NodeType, string> = {
 	pose: 'Pose / Body Language',
 	background: 'Background',
 	photography: 'Photography',
-	batch: 'Batch Processor'
+	batch: 'Batch Processor',
+	animal: 'Animals / Pets',
+	accessory: 'Accessories',
+	expression: 'Expression / Emotion',
+	furniture: 'Furniture / Objects',
+	reference: 'Reference Images',
+	upscale: 'Image Upscale',
+	compare: 'Image Compare'
 };
 
 // ============================================
@@ -505,5 +610,67 @@ export const DEFAULT_NODE_DATA: Record<NodeType, PromptNodeData> = {
 		type: 'batch',
 		images: [],
 		prompt: ''
+	},
+	animal: {
+		type: 'animal',
+		species: 'dog',
+		breed: '',
+		age: 'adult',
+		behavior: 'sitting',
+		coatColor: 'golden',
+		coatType: 'short',
+		accessory: '',
+		customPrompt: ''
+	},
+	accessory: {
+		type: 'accessory',
+		category: 'jewelry',
+		item: 'necklace',
+		material: 'gold',
+		style: 'minimalist',
+		placement: 'worn',
+		customPrompt: ''
+	},
+	expression: {
+		type: 'expression',
+		mood: 'confident',
+		smile: 'subtle',
+		eyeContact: 'direct',
+		energy: 'neutral',
+		eyebrows: 'relaxed',
+		mouthPosition: 'closed',
+		headPosition: 'straight',
+		customPrompt: ''
+	},
+	furniture: {
+		type: 'furniture',
+		category: 'seating',
+		item: 'sofa',
+		style: 'modern',
+		material: 'fabric',
+		setting: 'studio',
+		customPrompt: ''
+	},
+	reference: {
+		type: 'reference',
+		images: [],
+		customPrompt: ''
+	},
+	upscale: {
+		type: 'upscale',
+		inputImageUrl: undefined,
+		inputFile: undefined,
+		resolution: 4000,
+		status: 'idle',
+		progress: '',
+		progressPercent: 0,
+		outputImageUrl: undefined,
+		error: undefined
+	},
+	compare: {
+		type: 'compare',
+		originalImageUrl: undefined,
+		upscaledImageUrl: undefined,
+		sliderPosition: 50
 	}
 };

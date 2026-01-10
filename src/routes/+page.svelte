@@ -69,7 +69,14 @@
 				PoseNode,
 				BackgroundNode,
 				PhotographyNode,
-				BatchProcessorNode
+				BatchProcessorNode,
+				AnimalNode,
+				AccessoryNode,
+				ExpressionNode,
+				FurnitureNode,
+				ReferenceImageNode,
+				ImageUpscaleNode,
+				ImageCompareNode
 			] = await Promise.all([
 				import('$lib/components/nodes/ProductNode.svelte'),
 				import('$lib/components/nodes/SceneNode.svelte'),
@@ -90,7 +97,14 @@
 				import('$lib/components/nodes/PoseNode.svelte'),
 				import('$lib/components/nodes/BackgroundNode.svelte'),
 				import('$lib/components/nodes/PhotographyNode.svelte'),
-				import('$lib/components/nodes/BatchProcessorNode.svelte')
+				import('$lib/components/nodes/BatchProcessorNode.svelte'),
+				import('$lib/components/nodes/AnimalNode.svelte'),
+				import('$lib/components/nodes/AccessoryNode.svelte'),
+				import('$lib/components/nodes/ExpressionNode.svelte'),
+				import('$lib/components/nodes/FurnitureNode.svelte'),
+				import('$lib/components/nodes/ReferenceImageNode.svelte'),
+				import('$lib/components/nodes/ImageUpscaleNode.svelte'),
+				import('$lib/components/nodes/ImageCompareNode.svelte')
 			]);
 
 			nodeTypes = {
@@ -113,7 +127,14 @@
 				pose: PoseNode.default,
 				background: BackgroundNode.default,
 				photography: PhotographyNode.default,
-				batch: BatchProcessorNode.default
+				batch: BatchProcessorNode.default,
+				animal: AnimalNode.default,
+				accessory: AccessoryNode.default,
+				expression: ExpressionNode.default,
+				furniture: FurnitureNode.default,
+				reference: ReferenceImageNode.default,
+				upscale: ImageUpscaleNode.default,
+				compare: ImageCompareNode.default
 			};
 
 			mounted = true;

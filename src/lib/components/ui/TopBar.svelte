@@ -26,27 +26,33 @@
 	// Count generated images
 	let imageCount = $derived($generationState.generatedImages.length);
 
-	const nodeTypes: NodeType[] = [
-		'product',
-		'photography',
-		'scene',
-		'style',
-		'branding',
-		'lighting',
-		'camera',
-		'quality',
-		'custom',
-		'image',
-		'batch',
-		'human',
-		'clothing',
-		'pose',
-		'variation',
-		'plant',
-		'texture',
-		'background',
-		'output',
-		'refine'
+	// Grouped node types for the palette
+	const nodeGroups: { name: string; types: NodeType[] }[] = [
+		{
+			name: 'Starter',
+			types: ['product', 'photography', 'image', 'reference', 'batch', 'custom']
+		},
+		{
+			name: 'Subject',
+			types: ['human', 'clothing', 'pose', 'plant', 'animal', 'accessory', 'expression']
+		},
+		{
+			name: 'Scene',
+			types: [
+				'scene',
+				'background',
+				'style',
+				'branding',
+				'texture',
+				'lighting',
+				'camera',
+				'furniture'
+			]
+		},
+		{
+			name: 'Output',
+			types: ['output', 'quality', 'variation', 'refine', 'upscale']
+		}
 	];
 
 	function handleAddNode(type: NodeType) {
@@ -138,17 +144,23 @@
 
 			{#if showNodePalette}
 				<div class="node-palette">
-					<div class="palette-header">Add Node</div>
-					{#each nodeTypes as type}
-						<button
-							class="node-option"
-							onclick={() => handleAddNode(type)}
-							style="--node-color: {NODE_COLORS[type]}"
-						>
-							<span class="node-dot"></span>
-							{NODE_NAMES[type]}
-						</button>
-					{/each}
+					<div class="palette-grid">
+						{#each nodeGroups as group}
+							<div class="palette-column">
+								<div class="group-header">{group.name}</div>
+								{#each group.types as type}
+									<button
+										class="node-option"
+										onclick={() => handleAddNode(type)}
+										style="--node-color: {NODE_COLORS[type]}"
+									>
+										<span class="node-dot"></span>
+										{NODE_NAMES[type]}
+									</button>
+								{/each}
+							</div>
+						{/each}
+					</div>
 				</div>
 			{/if}
 		</div>
@@ -326,26 +338,43 @@
 		background-color: #333333;
 	}
 
-	.palette-header {
+	.node-palette {
+		min-width: 580px;
+		right: 50%;
+		left: auto;
+		transform: translateX(50%);
+		animation: slideUpCentered 0.2s ease-out;
+	}
+
+	.palette-grid {
+		display: grid;
+		grid-template-columns: repeat(4, 1fr);
+		gap: var(--space-md);
+		padding: var(--space-sm);
+	}
+
+	.palette-column {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-tiny);
+	}
+
+	.group-header {
 		font-size: var(--text-xs);
 		color: var(--color-text-secondary);
 		text-transform: uppercase;
 		letter-spacing: 0.5px;
-		padding: var(--space-sm) var(--space-md);
-		border-bottom: 1px solid #333333;
-		margin-bottom: var(--space-sm);
-	}
-
-	.node-palette {
-		min-width: 200px;
-		right: 0;
-		left: auto;
+		padding: var(--space-sm) var(--space-sm);
+		font-weight: var(--font-semibold);
+		border-bottom: 1px solid #444;
+		margin-bottom: var(--space-tiny);
 	}
 
 	.node-option {
 		display: flex;
 		align-items: center;
 		gap: var(--space-sm);
+		white-space: nowrap;
 	}
 
 	.node-dot {
@@ -480,6 +509,17 @@
 		to {
 			opacity: 1;
 			transform: translateY(0);
+		}
+	}
+
+	@keyframes slideUpCentered {
+		from {
+			opacity: 0;
+			transform: translateX(50%) translateY(10px);
+		}
+		to {
+			opacity: 1;
+			transform: translateX(50%) translateY(0);
 		}
 	}
 

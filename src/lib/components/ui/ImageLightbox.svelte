@@ -11,10 +11,11 @@
 		isOpen: boolean;
 		onClose: () => void;
 		onDownload: () => void;
+		onUpscale?: () => void;
 		onHide?: () => void;
 	}
 
-	let { imageUrl, modelLabel, isOpen, onClose, onDownload, onHide }: Props = $props();
+	let { imageUrl, modelLabel, isOpen, onClose, onDownload, onUpscale, onHide }: Props = $props();
 
 	let overlayEl: HTMLDivElement;
 	let contentEl: HTMLDivElement;
@@ -103,6 +104,19 @@
 						/>
 					</svg>
 				</button>
+				{#if onUpscale}
+					<button class="control-btn upscale-btn" onclick={onUpscale} aria-label="Upscale image">
+						<svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+							<path
+								d="M3 12V17H8M17 8V3H12M3 8L8 3M17 12L12 17"
+								stroke="currentColor"
+								stroke-width="2"
+								stroke-linecap="round"
+								stroke-linejoin="round"
+							/>
+						</svg>
+					</button>
+				{/if}
 				{#if onHide}
 					<button
 						class="control-btn delete-btn"
@@ -241,5 +255,11 @@
 		background: rgba(254, 110, 110, 0.2);
 		border-color: var(--color-error, #fe6e6e);
 		color: var(--color-error, #fe6e6e);
+	}
+
+	.upscale-btn:hover {
+		background: rgba(0, 206, 209, 0.2);
+		border-color: #00ced1;
+		color: #00ced1;
 	}
 </style>
