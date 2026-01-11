@@ -238,3 +238,81 @@ export async function setDefaultCanvas(userId: string, canvasId: string): Promis
     return false;
   }
 }
+
+// ============================================
+// Preset Canvases (Public Templates)
+// ============================================
+
+export interface PresetCanvasSummary {
+  id: string;
+  name: string;
+  description: string | null;
+  category: string;
+  nodeCount: number;
+}
+
+/**
+ * List all preset canvas templates
+ */
+export async function listPresetCanvases(): Promise<PresetCanvasSummary[]> {
+  if (!isSupabaseConfigured) return [];
+
+  try {
+    const { data, error } = await supabase
+      .from('preset_canvases')
+      .select('id, name, description, category, nodes')
+      .order('sort_order', { ascending: true });
+
+    if (error) {
+      console.error('[Canvas DB] Failed to list presets:', error);
+      return [];
+    }
+
+    return (data || []).map((row: any) => ({
+      id: row.id,
+      name: row.name,
+      description: row.description,
+      category: row.category,
+      nodeCount: Array.isArray(row.nodes) ? row.nodes.length : 0
+    }));
+  } catch (error) {
+    console.error('[Canvas DB] List presets error:', error);
+    return [];
+  }
+}
+
+/**
+ * Load a preset canvas by ID
+ */
+export async function loadPresetCanvas(presetId: string): Promise<DbCanvas | null> {
+  if (!isSupabaseConfigured) return null;
+
+  try {
+    const { data, error } = await supabase
+      .from('preset_canvases')
+      .select('*')
+      .eq('id', presetId)
+      .single();
+
+    if (error) {
+      console.error('[Canvas DB] Failed to load preset:', error);
+      return null;
+    }
+
+    // Convert preset to DbCanvas format
+    return {
+      id: data.id,
+      user_id: '',
+      name: data.name,
+      nodes: data.nodes || [],
+      edges: data.edges || [],
+      is_default: false,
+      created_at: data.created_at,
+      updated_at: data.created_at
+    } as DbCanvas;
+  } catch (error) {
+    console.error('[Canvas DB] Load preset error:', error);
+    return null;
+  }
+}
+

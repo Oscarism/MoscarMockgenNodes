@@ -7,7 +7,7 @@ import { writable, derived, get } from 'svelte/store';
 import type { PromptNode, PromptEdge, NodeType, PromptNodeData } from '$lib/types';
 import { DEFAULT_NODE_DATA, NODE_COLORS } from '$lib/types';
 import { v4 as uuidv4 } from 'uuid';
-import { saveCanvas, loadLatestCanvas, listCanvases, type CanvasSummary } from '$lib/services/canvasDatabase';
+import { saveCanvas, loadLatestCanvas, listCanvases, listPresetCanvases, type CanvasSummary, type PresetCanvasSummary } from '$lib/services/canvasDatabase';
 import { toasts } from './toasts';
 
 // ============================================
@@ -22,6 +22,7 @@ export const selectedNodeId = writable<string | null>(null);
 export const currentCanvasId = writable<string | null>(null);
 export const currentCanvasName = writable<string>('Untitled Canvas');
 export const savedCanvases = writable<CanvasSummary[]>([]);
+export const presetCanvases = writable<PresetCanvasSummary[]>([]);
 
 // ============================================
 // Node Management Functions
@@ -358,4 +359,12 @@ export async function loadFromCloud(userId: string): Promise<boolean> {
 export async function loadUserCanvases(userId: string): Promise<void> {
   const canvases = await listCanvases(userId);
   savedCanvases.set(canvases);
+}
+
+/**
+ * Load preset canvas templates
+ */
+export async function loadPresetCanvases(): Promise<void> {
+  const presets = await listPresetCanvases();
+  presetCanvases.set(presets);
 }

@@ -163,22 +163,39 @@
 				generatedImages: [...state.generatedImages, finalUrl]
 			}));
 
+			// Create history record with unique ID
+			const upscaleId = `upscale-${Date.now()}`;
+			const historyRecord = {
+				id: upscaleId,
+				timestamp: Date.now(),
+				prompt: `Upscaled to ${data.resolution}`,
+				aspectRatio: '1:1' as const,
+				quality: 'high' as const,
+				taskId: upscaleId,
+				state: 'success' as const,
+				model: 'comfyui-upscale' as const,
+				resultUrls: [finalUrl]
+			};
+
 			// Add to generation history so the lightbox shows correct model label
 			const { generationHistory } = await import('$lib/stores/generation');
-			generationHistory.update((h) => [
-				{
-					id: `upscale-${Date.now()}`,
-					timestamp: Date.now(),
-					prompt: `Upscaled to ${data.resolution}`,
-					aspectRatio: '1:1',
-					quality: 'high',
-					taskId: `upscale-${Date.now()}`,
-					state: 'success',
-					model: 'upscale',
-					resultUrls: [finalUrl]
-				},
-				...h
-			]);
+			generationHistory.update((h) => [historyRecord, ...h]);
+
+			// Save to database for logged-in users
+			if ($isLoggedIn && $user) {
+				try {
+					const { saveGeneration, updateGeneration } = await import('$lib/services/database');
+					const dbId = await saveGeneration($user.id, historyRecord);
+					if (dbId) {
+						console.log('[Upscale] Saved to database with ID:', dbId);
+						// Update with the permanent URL
+						await updateGeneration(upscaleId, 'success', [finalUrl]);
+						console.log('[Upscale] Updated database with permanent URL');
+					}
+				} catch (dbError) {
+					console.error('[Upscale] Failed to save to database:', dbError);
+				}
+			}
 
 			toasts.success('Image upscaled successfully!');
 

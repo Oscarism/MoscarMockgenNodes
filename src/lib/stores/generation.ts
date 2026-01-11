@@ -63,9 +63,8 @@ export async function fetchUserHistory(): Promise<void> {
         ...s,
         generatedImages: allImages
       }));
+      toasts.success(`Loaded ${allImages.length} images from your history`);
     }
-    
-    toasts.success(`Loaded ${records.length} generations from your history`);
   }
 }
 
@@ -189,7 +188,14 @@ export const generationError = derived(generationState, $state => $state.error);
 // Visible images (filtered out hidden ones)
 export const visibleImages = derived(
   [generationState, hiddenImages],
-  ([$state, $hidden]) => $state.generatedImages.filter(url => !$hidden.has(url))
+  ([$state, $hidden]) => {
+    const visible = $state.generatedImages.filter(url => !$hidden.has(url));
+    // Log when there's a difference (some images hidden)
+    if ($state.generatedImages.length !== visible.length) {
+      console.log(`[VisibleImages] Total: ${$state.generatedImages.length}, Hidden: ${$hidden.size}, Visible: ${visible.length}`);
+    }
+    return visible;
+  }
 );
 
 // ============================================
@@ -584,13 +590,32 @@ export async function startMultiModelBatchGeneration(
  * Poll for task completion
  */
 async function pollForCompletion(taskId: string): Promise<void> {
-  const maxAttempts = 60; // 5 minutes max
+  const maxAttempts = 60; // 5 minutes max (60 * 5s = 5min avg)
+  const startTime = Date.now();
   let attempts = 0;
   let pollInterval = 2000; // Start with 2 seconds
+  let hasWarnedTimeout = false;
+  
+  console.log(`[Poll] Starting polling for task ${taskId.substring(0, 12)}...`);
   
   while (attempts < maxAttempts) {
     await new Promise(resolve => setTimeout(resolve, pollInterval));
     attempts++;
+    
+    // Calculate elapsed time
+    const elapsed = Math.round((Date.now() - startTime) / 1000);
+    
+    // Log progress every 10 attempts
+    if (attempts % 10 === 0) {
+      console.log(`[Poll] Task ${taskId.substring(0, 8)}... attempt ${attempts}/${maxAttempts} (${elapsed}s elapsed)`);
+    }
+    
+    // Warn user at 65 seconds
+    if (elapsed >= 65 && !hasWarnedTimeout) {
+      hasWarnedTimeout = true;
+      console.log(`[Poll] Task ${taskId.substring(0, 8)}... taking longer than expected (${elapsed}s)`);
+      toasts.info('Generation taking longer than usual, please wait...');
+    }
     
     // Increase interval after 15 attempts (30 seconds)
     if (attempts > 15) pollInterval = 5000;
@@ -599,23 +624,32 @@ async function pollForCompletion(taskId: string): Promise<void> {
       const response = await fetch(`/api/status?taskId=${taskId}`);
       
       if (!response.ok) {
-        console.error('Failed to poll status');
+        console.error(`[Poll] Failed to poll status for ${taskId.substring(0, 8)}...`);
         continue;
       }
       
       const data = await response.json();
       
       if (data.code !== 200) {
-        console.error('API error during polling:', data.msg);
+        console.error(`[Poll] API error for ${taskId.substring(0, 8)}...:`, data.msg);
         continue;
       }
       
       const state = data.data.state;
       
       if (state === 'success') {
+        const completionTime = Math.round((Date.now() - startTime) / 1000);
+        console.log(`[Poll] Task ${taskId.substring(0, 8)}... completed successfully in ${completionTime}s`);
+        
         // Parse result
         const resultJson = JSON.parse(data.data.resultJson || '{}');
         const tempImageUrls = resultJson.resultUrls || [];
+        
+        console.log(`[Poll] Task ${taskId.substring(0, 8)}... raw result URLs:`, tempImageUrls.length, tempImageUrls);
+        
+        if (tempImageUrls.length === 0) {
+          console.warn(`[Poll] Task ${taskId.substring(0, 8)}... completed but returned NO images!`);
+        }
         
         // Upload images to permanent Supabase Storage for logged-in users
         const user = auth.getUser();
@@ -624,13 +658,21 @@ async function pollForCompletion(taskId: string): Promise<void> {
         if (user && tempImageUrls.length > 0) {
           console.log(`[Generation] Uploading ${tempImageUrls.length} images to permanent storage...`);
           imageUrls = await uploadMultipleToStorage(tempImageUrls, user.id);
-          console.log(`[Generation] Uploaded to Supabase Storage:`, imageUrls);
+          console.log(`[Generation] Uploaded to Supabase Storage (${imageUrls.length}):`, imageUrls);
         }
+        
+        // Get current count before update
+        const currentState = get(generationState);
+        console.log(`[Poll] Before update: ${currentState.generatedImages.length} images in store`);
         
         generationState.update(s => ({
           ...s,
           generatedImages: [...imageUrls, ...s.generatedImages]
         }));
+        
+        // Log after update
+        const afterState = get(generationState);
+        console.log(`[Poll] After update: ${afterState.generatedImages.length} images in store (+${imageUrls.length})`);
         
         // Update history
         generationHistory.update(h => 
@@ -646,6 +688,8 @@ async function pollForCompletion(taskId: string): Promise<void> {
           updateGeneration(taskId, 'success', imageUrls).then(success => {
             if (success) {
               console.log(`[Generation] Updated database with ${imageUrls.length} permanent URLs`);
+            } else {
+              console.error(`[Generation] FAILED to update database for task ${taskId.substring(0, 8)}...`);
             }
           });
         }
@@ -658,6 +702,8 @@ async function pollForCompletion(taskId: string): Promise<void> {
         const errorMsg = data.data.failMsg || 'Generation failed';
         const failCode = data.data.failCode || '';
         const fullError = failCode ? `[${failCode}] ${errorMsg}` : errorMsg;
+        
+        console.log(`[Poll] Task ${taskId.substring(0, 8)}... failed: ${fullError}`);
         
         // Show toast with detailed error
         toasts.error(`Task failed: ${fullError}`);
@@ -689,18 +735,33 @@ async function pollForCompletion(taskId: string): Promise<void> {
       // Still waiting, continue polling
       
     } catch (error) {
-      console.error('Polling error:', error);
+      console.error(`[Poll] Polling error for ${taskId.substring(0, 8)}...:`, error);
       // Continue polling despite errors
     }
   }
   
-  // Timeout
-  generationState.update(s => ({
-    ...s,
-    isGenerating: false,
-    progress: 'error',
-    error: 'Generation timed out'
-  }));
+  // Timeout - update history and show error
+  const timeoutError = `Generation timed out after ${Math.round((Date.now() - startTime) / 1000)}s`;
+  console.error(`[Poll] ${timeoutError} for task ${taskId.substring(0, 8)}...`);
+  
+  toasts.error(timeoutError);
+  
+  // Update history to reflect timeout
+  generationHistory.update(h => 
+    h.map(record => 
+      record.taskId === taskId 
+        ? { ...record, state: 'fail', errorMessage: timeoutError }
+        : record
+    )
+  );
+  
+  // Update database for logged-in users
+  const userForTimeout = auth.getUser();
+  if (userForTimeout) {
+    updateGeneration(taskId, 'fail', undefined, timeoutError);
+  }
+  
+  // Note: isGenerating is now handled by the caller after Promise.all completes
 }
 
 /**

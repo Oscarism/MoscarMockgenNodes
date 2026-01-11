@@ -2,71 +2,34 @@
 	import {
 		nodes,
 		edges,
-		addNode,
 		clearCanvas,
 		downloadCanvas,
-		loadCanvasFromFile,
-		saveToCloud,
-		loadFromCloud
+		loadCanvasFromFile
 	} from '$lib/stores/canvas';
-	import { generationHistory, generationState, drawerState } from '$lib/stores/generation';
+	import { generationState, drawerState, visibleImages } from '$lib/stores/generation';
 	import { auth, user, isLoggedIn } from '$lib/stores/auth';
-	import type { NodeType } from '$lib/types';
-	import { NODE_COLORS, NODE_NAMES } from '$lib/types';
 	import LoginModal from './LoginModal.svelte';
-	import { toasts } from '$lib/stores/toasts';
+	import NodePalette from './NodePalette.svelte';
+	import HistoryPanel from './HistoryPanel.svelte';
+	import SaveCanvasDialog from './SaveCanvasDialog.svelte';
+	import LoadCanvasDialog from './LoadCanvasDialog.svelte';
 
-	let showDropdown = $state(false);
 	let showNodePalette = $state(false);
 	let showHistory = $state(false);
 	let showLoginModal = $state(false);
 	let showUserMenu = $state(false);
+	let showSaveDialog = $state(false);
+	let showLoadDialog = $state(false);
 	let fileInput: HTMLInputElement;
 
-	// Count generated images
-	let imageCount = $derived($generationState.generatedImages.length);
+	// Count visible images (same as OutputDrawer to stay in sync)
+	let imageCount = $derived($visibleImages.length);
 
-	// Grouped node types for the palette
-	const nodeGroups: { name: string; types: NodeType[] }[] = [
-		{
-			name: 'Starter',
-			types: ['product', 'photography', 'image', 'reference', 'batch', 'custom']
-		},
-		{
-			name: 'Subject',
-			types: ['human', 'clothing', 'pose', 'plant', 'animal', 'accessory', 'expression']
-		},
-		{
-			name: 'Scene',
-			types: [
-				'scene',
-				'background',
-				'style',
-				'branding',
-				'texture',
-				'lighting',
-				'camera',
-				'furniture'
-			]
-		},
-		{
-			name: 'Output',
-			types: ['output', 'quality', 'variation', 'refine', 'upscale']
-		}
-	];
-
-	function handleAddNode(type: NodeType) {
-		const x = 200 + Math.random() * 100;
-		const y = 100 + Math.random() * 100;
-		addNode(type, { x, y });
-		showNodePalette = false;
-	}
-
-	function handleSave() {
+	function handleLocalSave() {
 		downloadCanvas($nodes, $edges);
 	}
 
-	function handleLoad() {
+	function handleLocalLoad() {
 		fileInput?.click();
 	}
 
@@ -82,50 +45,15 @@
 	function handleReset() {
 		console.log('[TopBar] handleReset called - clearing canvas directly');
 		clearCanvas();
-		// Force a page-level state reset
 		console.log('[TopBar] clearCanvas completed');
 	}
 
 	function handleShowHistory() {
 		showHistory = !showHistory;
-		showDropdown = false;
 	}
 
 	function handleViewImages() {
 		drawerState.update((s) => ({ ...s, mode: 'expanded' }));
-	}
-
-	// Cloud save/load state
-	let isSaving = $state(false);
-	let isLoadingCloud = $state(false);
-
-	async function handleCloudSave() {
-		if (!$user) {
-			toasts.error('Please sign in to save to cloud');
-			return;
-		}
-		isSaving = true;
-		try {
-			await saveToCloud($user.id);
-		} finally {
-			isSaving = false;
-		}
-	}
-
-	async function handleCloudLoad() {
-		if (!$user) {
-			toasts.error('Please sign in to load from cloud');
-			return;
-		}
-		isLoadingCloud = true;
-		try {
-			const loaded = await loadFromCloud($user.id);
-			if (!loaded) {
-				toasts.info('No saved canvas found');
-			}
-		} finally {
-			isLoadingCloud = false;
-		}
 	}
 </script>
 
@@ -141,41 +69,17 @@
 			<button class="toolbar-btn" onclick={() => (showNodePalette = !showNodePalette)}>
 				Nodes
 			</button>
-
-			{#if showNodePalette}
-				<div class="node-palette">
-					<div class="palette-grid">
-						{#each nodeGroups as group}
-							<div class="palette-column">
-								<div class="group-header">{group.name}</div>
-								{#each group.types as type}
-									<button
-										class="node-option"
-										onclick={() => handleAddNode(type)}
-										style="--node-color: {NODE_COLORS[type]}"
-									>
-										<span class="node-dot"></span>
-										{NODE_NAMES[type]}
-									</button>
-								{/each}
-							</div>
-						{/each}
-					</div>
-				</div>
-			{/if}
+			<NodePalette isOpen={showNodePalette} onClose={() => (showNodePalette = false)} />
 		</div>
 
 		<button class="toolbar-btn" onclick={handleShowHistory}>History</button>
+
 		{#if $isLoggedIn}
-			<button class="toolbar-btn" onclick={handleCloudLoad} disabled={isLoadingCloud}>
-				{isLoadingCloud ? '...' : 'Load'}
-			</button>
-			<button class="toolbar-btn" onclick={handleCloudSave} disabled={isSaving}>
-				{isSaving ? '...' : 'Save'}
-			</button>
+			<button class="toolbar-btn" onclick={() => (showLoadDialog = true)}> Load </button>
+			<button class="toolbar-btn" onclick={() => (showSaveDialog = true)}> Save </button>
 		{:else}
-			<button class="toolbar-btn" onclick={handleLoad}>Load</button>
-			<button class="toolbar-btn" onclick={handleSave}>Save</button>
+			<button class="toolbar-btn" onclick={handleLocalLoad}>Load</button>
+			<button class="toolbar-btn" onclick={handleLocalSave}>Save</button>
 		{/if}
 		<button class="toolbar-btn danger" onclick={handleReset}>Reset</button>
 	</div>
@@ -213,35 +117,9 @@
 </header>
 
 <LoginModal isOpen={showLoginModal} onClose={() => (showLoginModal = false)} />
-
-<!-- History Panel -->
-{#if showHistory}
-	<div class="history-panel">
-		<div class="history-header">
-			<h3>Generation History</h3>
-			<button class="close-btn" onclick={() => (showHistory = false)}>×</button>
-		</div>
-		<div class="history-content">
-			{#if $generationHistory.length === 0}
-				<p class="empty">No generations yet</p>
-			{:else}
-				{#each $generationHistory as record}
-					<div
-						class="history-item"
-						class:success={record.state === 'success'}
-						class:fail={record.state === 'fail'}
-					>
-						<div class="history-time">
-							{new Date(record.timestamp).toLocaleTimeString()}
-						</div>
-						<div class="history-prompt">{record.prompt.slice(0, 100)}...</div>
-						<div class="history-status">{record.state}</div>
-					</div>
-				{/each}
-			{/if}
-		</div>
-	</div>
-{/if}
+<HistoryPanel isOpen={showHistory} onClose={() => (showHistory = false)} />
+<SaveCanvasDialog isOpen={showSaveDialog} onClose={() => (showSaveDialog = false)} />
+<LoadCanvasDialog isOpen={showLoadDialog} onClose={() => (showLoadDialog = false)} />
 
 <input
 	type="file"
@@ -288,100 +166,8 @@
 		letter-spacing: 0px;
 	}
 
-	.toolbar-btn.circle {
-		width: 36px;
-		height: 36px;
-		padding: 0;
-		border-radius: var(--radius-full);
-		font-size: var(--text-xl);
-		display: flex;
-		align-items: center;
-		justify-content: center;
-	}
-
 	.dropdown-container {
 		position: relative;
-	}
-
-	.dropdown-menu,
-	.node-palette {
-		position: absolute;
-		top: calc(100% + 8px);
-		left: 0;
-		background-color: #222222;
-		border-radius: var(--radius-lg);
-		padding: var(--space-sm);
-		min-width: 160px;
-		z-index: var(--z-dropdown);
-		animation: slideUp 0.2s ease-out;
-	}
-
-	.dropdown-menu button,
-	.node-palette button {
-		width: 100%;
-		padding: var(--space-sm) var(--space-md);
-		text-align: left;
-		border-radius: var(--radius-md);
-		background-color: transparent;
-		border: none;
-		cursor: pointer;
-		transition: background-color var(--transition-fast);
-		display: flex;
-		align-items: center;
-		gap: var(--space-sm);
-		color: var(--color-text-primary);
-		font-size: var(--text-sm);
-	}
-
-	.dropdown-menu button:hover,
-	.node-palette button:hover {
-		background-color: #333333;
-	}
-
-	.node-palette {
-		min-width: 580px;
-		right: 50%;
-		left: auto;
-		transform: translateX(50%);
-		animation: slideUpCentered 0.2s ease-out;
-	}
-
-	.palette-grid {
-		display: grid;
-		grid-template-columns: repeat(4, 1fr);
-		gap: var(--space-md);
-		padding: var(--space-sm);
-	}
-
-	.palette-column {
-		display: flex;
-		flex-direction: column;
-		gap: var(--space-tiny);
-	}
-
-	.group-header {
-		font-size: var(--text-xs);
-		color: var(--color-text-secondary);
-		text-transform: uppercase;
-		letter-spacing: 0.5px;
-		padding: var(--space-sm) var(--space-sm);
-		font-weight: var(--font-semibold);
-		border-bottom: 1px solid #444;
-		margin-bottom: var(--space-tiny);
-	}
-
-	.node-option {
-		display: flex;
-		align-items: center;
-		gap: var(--space-sm);
-		white-space: nowrap;
-	}
-
-	.node-dot {
-		width: 10px;
-		height: 10px;
-		border-radius: var(--radius-full);
-		background-color: var(--node-color);
 	}
 
 	.toolbar-btn {
@@ -401,126 +187,6 @@
 
 	.toolbar-btn.danger:hover {
 		background-color: var(--color-error);
-	}
-
-	.history-panel {
-		position: fixed;
-		top: var(--topbar-height);
-		right: 0;
-		width: 320px;
-		max-height: calc(100vh - var(--topbar-height));
-		background-color: #222222;
-		border-left: 1px solid #333333;
-		z-index: var(--z-dropdown);
-		display: flex;
-		flex-direction: column;
-		animation: slideIn 0.3s ease-out;
-	}
-
-	@keyframes slideIn {
-		from {
-			transform: translateX(100%);
-		}
-		to {
-			transform: translateX(0);
-		}
-	}
-
-	.history-header {
-		padding: var(--space-lg);
-		border-bottom: 1px solid #333333;
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-	}
-
-	.history-header h3 {
-		font-size: var(--text-lg);
-		font-weight: var(--font-medium);
-	}
-
-	.close-btn {
-		width: 28px;
-		height: 28px;
-		border-radius: var(--radius-full);
-		background-color: #333333;
-		border: none;
-		color: var(--color-text-primary);
-		font-size: var(--text-lg);
-		cursor: pointer;
-		transition: all var(--transition-fast);
-	}
-
-	.close-btn:hover {
-		background-color: var(--color-error);
-	}
-
-	.history-content {
-		flex: 1;
-		overflow-y: auto;
-		padding: var(--space-md);
-	}
-
-	.history-content .empty {
-		color: var(--color-text-muted);
-		text-align: center;
-		padding: var(--space-xl);
-	}
-
-	.history-item {
-		padding: var(--space-md);
-		background-color: #1a1a1a;
-		border-radius: var(--radius-md);
-		margin-bottom: var(--space-sm);
-	}
-
-	.history-item.success {
-		border-left: 3px solid var(--color-success);
-	}
-
-	.history-item.fail {
-		border-left: 3px solid var(--color-error);
-	}
-
-	.history-time {
-		font-size: var(--text-xs);
-		color: var(--color-text-muted);
-	}
-
-	.history-prompt {
-		font-size: var(--text-sm);
-		color: var(--color-text-primary);
-		margin: var(--space-tiny) 0;
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
-	}
-
-	.history-status {
-		font-size: var(--text-xs);
-		text-transform: uppercase;
-	}
-
-	@keyframes slideUp {
-		from {
-			opacity: 0;
-			transform: translateY(10px);
-		}
-		to {
-			opacity: 1;
-			transform: translateY(0);
-		}
-	}
-
-	@keyframes slideUpCentered {
-		from {
-			opacity: 0;
-			transform: translateX(50%) translateY(10px);
-		}
-		to {
-			opacity: 1;
-			transform: translateX(50%) translateY(0);
-		}
 	}
 
 	.toolbar-btn.accent {
