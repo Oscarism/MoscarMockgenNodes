@@ -53,6 +53,54 @@ const MODEL_CONFIG = {
     supportsImages: true,
     requiresImages: false,
     imageUrlField: 'image_input'
+  },
+  'nano-banana-2': {
+    maxPromptLength: 20000,
+    validRatios: ['1:1', '4:3', '3:4', '16:9', '9:16', '2:3', '3:2', '21:9', '4:5', '5:4', '1:4', '1:8', '4:1', '8:1', 'auto'],
+    supportsQuality: false,
+    supportsResolution: true,
+    supportsImages: true,
+    requiresImages: false,
+    imageUrlField: 'image_input'
+  },
+  'seedream/5-lite-image-to-image': {
+    maxPromptLength: 2996,
+    validRatios: ['1:1', '4:3', '3:4', '16:9', '9:16', '2:3', '3:2', '21:9'],
+    supportsQuality: true,
+    supportsResolution: false,
+    supportsImages: true,
+    requiresImages: true,
+    imageUrlField: 'image_urls'
+  },
+  'seedream/5-lite-text-to-image': {
+    maxPromptLength: 2995,
+    validRatios: ['1:1', '4:3', '3:4', '16:9', '9:16', '2:3', '3:2', '21:9'],
+    supportsQuality: true,
+    supportsResolution: false,
+    supportsImages: false,
+    requiresImages: false,
+    imageUrlField: 'image_urls'
+  },
+  'grok-imagine/image-to-image': {
+    maxPromptLength: 390000,
+    validRatios: [],            // No aspect ratio parameter for this model
+    supportsQuality: false,
+    supportsResolution: false,
+    supportsImages: true,
+    requiresImages: true,
+    requiresPrompt: false,      // Prompt is optional for grok-imagine
+    supportsAspectRatio: false, // Does not accept aspect_ratio in the API payload
+    imageUrlField: 'image_urls'
+  },
+  'gpt-image/1.5-image-to-image': {
+    maxPromptLength: 3000,
+    validRatios: ['1:1', '2:3', '3:2'],
+    supportsQuality: true,
+    qualityValues: ['medium', 'high'], // Non-standard: uses medium/high instead of basic/high
+    supportsResolution: false,
+    supportsImages: true,
+    requiresImages: true,
+    imageUrlField: 'input_urls'         // Non-standard field name
   }
 } as const;
 
@@ -67,26 +115,30 @@ export const POST: RequestHandler = async ({ request }) => {
     const selectedModel: ModelName = validModels.includes(model) ? model : 'seedream/4.5-text-to-image';
     const config = MODEL_CONFIG[selectedModel];
 
-    // Validate prompt
-    if (!prompt || typeof prompt !== 'string') {
+    // Validate prompt (optional for some models like grok-imagine)
+    const promptRequired = !('requiresPrompt' in config) || (config as any).requiresPrompt !== false;
+    if (promptRequired && (!prompt || typeof prompt !== 'string')) {
       return json({ code: 400, msg: 'Prompt is required' }, { status: 400 });
     }
 
-    if (prompt.length > config.maxPromptLength) {
+    if (prompt && prompt.length > config.maxPromptLength) {
       return json(
         { code: 400, msg: `Prompt exceeds ${config.maxPromptLength} character limit for ${selectedModel}` },
         { status: 400 }
       );
     }
 
-    // Validate aspect ratio
-    if (!config.validRatios.includes(aspectRatio)) {
+    // Validate aspect ratio (skip for models that don't use it)
+    const supportsAspectRatio = !('supportsAspectRatio' in config) || (config as any).supportsAspectRatio !== false;
+    if (supportsAspectRatio && !(config.validRatios as readonly string[]).includes(aspectRatio)) {
       return json({ code: 400, msg: `Invalid aspect ratio for ${selectedModel}` }, { status: 400 });
     }
 
     // Validate quality (only for models that support it)
-    if (config.supportsQuality && !['basic', 'high'].includes(quality)) {
-      return json({ code: 400, msg: 'Invalid quality setting' }, { status: 400 });
+    // Some models use non-standard quality values (e.g. gpt-image uses medium/high)
+    const validQualityValues = (config as any).qualityValues || ['basic', 'high'];
+    if (config.supportsQuality && !validQualityValues.includes(quality)) {
+      return json({ code: 400, msg: `Invalid quality setting for ${selectedModel}` }, { status: 400 });
     }
 
     // Validate resolution (only for models that support it)
@@ -95,14 +147,22 @@ export const POST: RequestHandler = async ({ request }) => {
     }
 
     // Build the input object based on model
-    const input: Record<string, any> = {
-      prompt,
-      aspect_ratio: aspectRatio
-    };
+    const input: Record<string, any> = {};
 
-    // Add quality only if supported (Seedream models)
+    // Add prompt (always include if provided, even if empty string for optional-prompt models)
+    if (prompt && typeof prompt === 'string') {
+      input.prompt = prompt;
+    }
+
+    // Add aspect_ratio only for models that support it
+    if (supportsAspectRatio) {
+      input.aspect_ratio = aspectRatio;
+    }
+
+    // Add quality only if supported; use model's first valid quality value as default
     if (config.supportsQuality) {
-      input.quality = quality || 'basic';
+      const qualityDefault = (config as any).qualityValues?.[0] || 'basic';
+      input.quality = quality || qualityDefault;
     }
 
     // Add resolution only if supported (Flux/Nano Banana models)
@@ -110,8 +170,8 @@ export const POST: RequestHandler = async ({ request }) => {
       input.resolution = resolution || '1K';
     }
 
-    // Add output_format for Nano Banana Pro
-    if (selectedModel === 'nano-banana-pro') {
+    // Add output_format for Nano Banana models
+    if (selectedModel === 'nano-banana-pro' || selectedModel === 'nano-banana-2') {
       input.output_format = 'png';
     }
 

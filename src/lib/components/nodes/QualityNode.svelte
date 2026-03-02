@@ -18,30 +18,42 @@
 			description: 'Text-to-image, 2K/4K'
 		},
 		{ value: 'seedream/4.5-edit', label: 'Edit', description: 'Image editing' },
+		{ value: 'seedream/5-lite-text-to-image', label: 'SD5 T2I', description: 'Seedream 5 Lite T2I' },
+		{ value: 'seedream/5-lite-image-to-image', label: 'SD5 I2I', description: 'Seedream 5 Lite I2I' },
 		{ value: 'z-image', label: 'Z-Image', description: 'Realistic portraits' },
 		{ value: 'flux-2/pro-image-to-image', label: 'Flux I2I', description: 'Pro image editing' },
-		{ value: 'nano-banana-pro', label: 'Nano B.', description: 'Versatile T2I/I2I with 4K' }
+		{ value: 'nano-banana-pro', label: 'Nano B.', description: 'Versatile T2I/I2I with 4K' },
+		{ value: 'nano-banana-2', label: 'Nano B2', description: 'Nano Banana 2 — 20K prompt, exotic ratios' },
+		{ value: 'grok-imagine/image-to-image', label: 'Grok I2I', description: 'Grok image-to-image, 390K prompt' },
+		{ value: 'gpt-image/1.5-image-to-image', label: 'GPT I2I', description: 'GPT-Image 1.5 image editing' }
+	];
+
+	// Quality options for GPT-Image models (uses medium/high instead of basic/high)
+	const gptImageQualityOptions = [
+		{ id: 'medium', label: 'Medium', value: 'medium' as const, description: 'Balanced quality, faster' },
+		{ id: 'high', label: 'High', value: 'high' as const, description: 'Slow, maximum detail' }
 	];
 
 	// Comprehensive model-to-aspect-ratio mapping
 	const modelRatios: Record<GenerationModel, string[]> = {
 		'seedream/4.5-text-to-image': ['1:1', '4:3', '3:4', '16:9', '9:16', '2:3', '3:2', '21:9'],
 		'seedream/4.5-edit': ['1:1', '4:3', '3:4', '16:9', '9:16', '2:3', '3:2', '21:9'],
+		'seedream/5-lite-text-to-image': ['1:1', '4:3', '3:4', '16:9', '9:16', '2:3', '3:2', '21:9'],
+		'seedream/5-lite-image-to-image': ['1:1', '4:3', '3:4', '16:9', '9:16', '2:3', '3:2', '21:9'],
 		'z-image': ['1:1', '4:3', '3:4', '16:9', '9:16'],
 		'flux-2/pro-image-to-image': ['1:1', '4:3', '3:4', '16:9', '9:16', '3:2', '2:3', 'auto'],
 		'nano-banana-pro': [
-			'1:1',
-			'4:3',
-			'3:4',
-			'16:9',
-			'9:16',
-			'3:2',
-			'2:3',
-			'21:9',
-			'4:5',
-			'5:4',
-			'auto'
-		]
+			'1:1', '4:3', '3:4', '16:9', '9:16', '3:2', '2:3', '21:9', '4:5', '5:4', 'auto'
+		],
+		'nano-banana-2': [
+			'1:1', '4:3', '3:4', '16:9', '9:16', '2:3', '3:2', '21:9',
+			'4:5', '5:4', '1:4', '1:8', '4:1', '8:1', 'auto'
+		],
+		// Grok ignores aspect_ratio — map to all standard ratios so it doesn't collapse
+		// the intersection when combined with other models. Server never sends aspect_ratio for it.
+		'grok-imagine/image-to-image': ['1:1', '4:3', '3:4', '16:9', '9:16', '2:3', '3:2', '21:9', 'auto'],
+		// GPT-Image only supports 3 ratios
+		'gpt-image/1.5-image-to-image': ['1:1', '2:3', '3:2']
 	};
 
 	// Legacy individual arrays for backwards compatibility
@@ -137,16 +149,31 @@
 
 	// Model capability checks (based on any selected model)
 	let isFluxModel = $derived(selectedModels.some((m) => m?.startsWith('flux-2/')));
-	let isNanoBanana = $derived(selectedModels.includes('nano-banana-pro'));
+	let isNanoBanana = $derived(selectedModels.includes('nano-banana-pro') || selectedModels.includes('nano-banana-2'));
 	let supportsQuality = $derived(
-		selectedModels.some((m) => m === 'seedream/4.5-text-to-image' || m === 'seedream/4.5-edit')
+		selectedModels.some((m) =>
+			m === 'seedream/4.5-text-to-image' ||
+			m === 'seedream/4.5-edit' ||
+			m === 'seedream/5-lite-text-to-image' ||
+			m === 'seedream/5-lite-image-to-image'
+		)
 	);
 	let supportsResolution = $derived(isFluxModel || isNanoBanana);
 
 	let requiresImages = $derived(
 		selectedModels.includes('seedream/4.5-edit') ||
-			selectedModels.includes('flux-2/pro-image-to-image')
+			selectedModels.includes('seedream/5-lite-image-to-image') ||
+			selectedModels.includes('flux-2/pro-image-to-image') ||
+			selectedModels.includes('grok-imagine/image-to-image') ||
+			selectedModels.includes('gpt-image/1.5-image-to-image')
 	);
+
+	// GPT-Image uses medium/high quality instead of basic/high.
+	// Show the right buttons based on what models are selected.
+	let isGptImageOnly = $derived(
+		selectedModels.length === 1 && selectedModels[0] === 'gpt-image/1.5-image-to-image'
+	);
+	let currentQualityOptions = $derived(isGptImageOnly ? gptImageQualityOptions : qualityOptions);
 
 	function handleRatioChange(event: Event) {
 		const aspectRatio = (event.target as HTMLSelectElement).value as AspectRatio;
@@ -222,7 +249,7 @@
 		<div class="field">
 			<label for="quality-{id}">Quality</label>
 			<div class="quality-toggle">
-				{#each qualityOptions as option}
+				{#each currentQualityOptions as option}
 					<button
 						type="button"
 						class="quality-btn"
@@ -234,7 +261,7 @@
 				{/each}
 			</div>
 			<span class="hint">
-				{qualityOptions.find((q) => q.value === data.quality)?.description || ''}
+				{currentQualityOptions.find((q) => q.value === data.quality)?.description || ''}
 			</span>
 		</div>
 	{/if}

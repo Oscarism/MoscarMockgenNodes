@@ -486,7 +486,12 @@ export const aspectRatioOptions: AspectRatioOption[] = [
   { id: '3:2', label: '3:2 Landscape', value: '3:2', description: 'DSLR standard ratio' },
   { id: '4:5', label: '4:5 Social', value: '4:5', description: 'Social portrait' },
   { id: '5:4', label: '5:4 Landscape', value: '5:4', description: 'Social landscape' },
-  { id: '21:9', label: '21:9 Ultrawide', value: '21:9', description: 'Cinematic banner' }
+  { id: '21:9', label: '21:9 Ultrawide', value: '21:9', description: 'Cinematic banner' },
+  // Extended ratios supported by Nano Banana 2
+  { id: '1:4', label: '1:4 Tall', value: '1:4', description: 'Extreme portrait (Nano B2)' },
+  { id: '1:8', label: '1:8 Strip', value: '1:8', description: 'Ultra-tall strip (Nano B2)' },
+  { id: '4:1', label: '4:1 Wide', value: '4:1', description: 'Extreme landscape (Nano B2)' },
+  { id: '8:1', label: '8:1 Banner', value: '8:1', description: 'Ultra-wide banner (Nano B2)' }
 ];
 
 export interface QualityOption {

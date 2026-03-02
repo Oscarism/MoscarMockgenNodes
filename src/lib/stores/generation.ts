@@ -344,8 +344,12 @@ export async function startBatchGeneration(
   // Determine if model supports/requires images
   const modelsSupportingImages = [
     'seedream/4.5-edit', 
+    'seedream/5-lite-image-to-image',
     'flux-2/pro-image-to-image',
-    'nano-banana-pro'
+    'nano-banana-pro',
+    'nano-banana-2',
+    'grok-imagine/image-to-image',
+    'gpt-image/1.5-image-to-image'
   ];
   const shouldSendImages = modelsSupportingImages.includes(model);
 
@@ -473,8 +477,12 @@ export async function startMultiModelBatchGeneration(
   // Models that support image input
   const modelsSupportingImages = [
     'seedream/4.5-edit', 
+    'seedream/5-lite-image-to-image',
     'flux-2/pro-image-to-image',
-    'nano-banana-pro'
+    'nano-banana-pro',
+    'nano-banana-2',
+    'grok-imagine/image-to-image',
+    'gpt-image/1.5-image-to-image'
   ];
 
   try {

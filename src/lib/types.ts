@@ -88,14 +88,19 @@ export type GenerationModel =
   | 'seedream/4.5-edit' 
   | 'z-image'
   | 'flux-2/pro-image-to-image'
-  | 'nano-banana-pro';
+  | 'nano-banana-pro'
+  | 'nano-banana-2'
+  | 'seedream/5-lite-image-to-image'
+  | 'seedream/5-lite-text-to-image'
+  | 'grok-imagine/image-to-image'
+  | 'gpt-image/1.5-image-to-image';
 
 export interface QualityNodeData {
 	type: 'quality';
 	model: GenerationModel; // Kept for backwards compatibility
 	models: GenerationModel[]; // New: array for multi-model selection
 	aspectRatio: AspectRatio;
-	quality: 'basic' | 'high';
+	quality: Quality; // Includes 'basic' | 'high' | 'medium'
 }
 
 export interface OutputNodeData {
@@ -337,8 +342,8 @@ export type PromptEdge = Edge;
 // ============================================
 // API Types
 // ============================================
-export type AspectRatio = '1:1' | '4:3' | '3:4' | '16:9' | '9:16' | '2:3' | '3:2' | '21:9' | '4:5' | '5:4' | 'auto';
-export type Quality = 'basic' | 'high';
+export type AspectRatio = '1:1' | '4:3' | '3:4' | '16:9' | '9:16' | '2:3' | '3:2' | '21:9' | '4:5' | '5:4' | '1:4' | '1:8' | '4:1' | '8:1' | 'auto';
+export type Quality = 'basic' | 'high' | 'medium';
 
 export interface CreateTaskRequest {
 	model: string;
