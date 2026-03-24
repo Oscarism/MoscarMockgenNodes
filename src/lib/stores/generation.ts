@@ -198,6 +198,21 @@ export const visibleImages = derived(
   }
 );
 
+/**
+ * Add a single media URL (image or video) to the gallery/drawer.
+ * Call this from video generation nodes after successful completion.
+ */
+export function addMediaToGallery(url: string, label?: string): void {
+  generationState.update(s => ({
+    ...s,
+    generatedImages: [url, ...s.generatedImages]
+  }));
+  // Ensure drawer opens so user sees the result
+  setDrawerMode('expanded');
+}
+
+
+
 // ============================================
 // Generation Actions
 // ============================================

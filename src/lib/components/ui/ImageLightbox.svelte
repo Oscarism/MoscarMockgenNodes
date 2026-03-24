@@ -20,6 +20,37 @@
 	let overlayEl: HTMLDivElement;
 	let contentEl: HTMLDivElement;
 
+	// Detect if the URL is a video
+	let isVideo = $derived(
+		/\.(mp4|webm|mov|ogg)(\?.*)?$/i.test(imageUrl) ||
+		imageUrl.includes('video') && !imageUrl.includes('image')
+	);
+
+	// Robust blob-based download that always triggers Save As, never a new tab
+	async function downloadBlob() {
+		if (!imageUrl) return;
+		try {
+			const resp = await fetch(imageUrl);
+			if (!resp.ok) throw new Error('Fetch failed');
+			const blob = await resp.blob();
+			const ext = isVideo ? 'mp4' : 'webp';
+			const uniqueId = Math.random().toString(36).substring(2, 10).toUpperCase();
+			const timestamp = Date.now().toString(36).toUpperCase();
+			const fileName = `MOSCAR-${uniqueId}${timestamp}.${ext}`;
+			const url = URL.createObjectURL(blob);
+			const a = document.createElement('a');
+			a.href = url;
+			a.download = fileName;
+			document.body.appendChild(a);
+			a.click();
+			document.body.removeChild(a);
+			URL.revokeObjectURL(url);
+		} catch {
+			// Fallback: open in new tab if blob fetch fails (e.g. CORS)
+			window.open(imageUrl, '_blank');
+		}
+	}
+
 	// Handle escape key
 	function handleKeydown(e: KeyboardEvent) {
 		if (e.key === 'Escape' && isOpen) {
@@ -85,7 +116,17 @@
 	>
 		<div class="lightbox-content" bind:this={contentEl} onclick={(e) => e.stopPropagation()}>
 			<div class="image-container">
-				<img src={imageUrl} alt="Generated image" class="lightbox-image" />
+				{#if isVideo}
+					<!-- svelte-ignore a11y_media_has_caption -->
+					<video
+						src={imageUrl}
+						controls
+						playsinline
+						class="lightbox-video"
+					></video>
+				{:else}
+					<img src={imageUrl} alt="Generated image" class="lightbox-image" />
+				{/if}
 
 				<!-- Model tag - bottom left -->
 				<div class="model-tag">{modelLabel}</div>
@@ -93,7 +134,7 @@
 
 			<!-- Controls - right side -->
 			<div class="controls">
-				<button class="control-btn" onclick={onDownload} aria-label="Download image">
+				<button class="control-btn" onclick={downloadBlob} aria-label="Download">
 					<svg width="20" height="20" viewBox="0 0 20 20" fill="none">
 						<path
 							d="M10 3V12M10 12L6 8M10 12L14 8M3 17H17"
@@ -197,6 +238,17 @@
 		border-radius: 12px;
 		box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
 		object-fit: contain;
+	}
+
+	.lightbox-video {
+		max-width: 90vw;
+		max-height: 90vh;
+		width: auto;
+		height: auto;
+		border-radius: 12px;
+		box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+		background: #000;
+		display: block;
 	}
 
 	.model-tag {

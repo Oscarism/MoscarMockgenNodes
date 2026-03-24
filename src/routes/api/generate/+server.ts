@@ -101,6 +101,26 @@ const MODEL_CONFIG = {
     supportsImages: true,
     requiresImages: true,
     imageUrlField: 'input_urls'         // Non-standard field name
+  },
+  'qwen2/text-to-image': {
+    maxPromptLength: 800,
+    validRatios: ['1:1', '3:4', '4:3', '9:16', '16:9'],
+    supportsQuality: false,
+    supportsResolution: false,
+    supportsImages: false,
+    usesImageSize: true,                // Uses `image_size` instead of `aspect_ratio`
+    imageUrlField: 'image_urls'
+  },
+  'qwen2/image-edit': {
+    maxPromptLength: 800,
+    validRatios: ['1:1', '2:3', '3:2', '3:4', '4:3', '9:16', '16:9', '21:9'],
+    supportsQuality: false,
+    supportsResolution: false,
+    supportsImages: true,
+    requiresImages: true,
+    usesImageSize: true,                // Uses `image_size` instead of `aspect_ratio`
+    qwenSingleImageUrl: true,           // image_url is a string, not array
+    imageUrlField: 'image_url'
   }
 } as const;
 
@@ -156,7 +176,12 @@ export const POST: RequestHandler = async ({ request }) => {
 
     // Add aspect_ratio only for models that support it
     if (supportsAspectRatio) {
-      input.aspect_ratio = aspectRatio;
+      // Qwen2 models use `image_size` field instead of `aspect_ratio`
+      if ((config as any).usesImageSize) {
+        input.image_size = aspectRatio;
+      } else {
+        input.aspect_ratio = aspectRatio;
+      }
     }
 
     // Add quality only if supported; use model's first valid quality value as default
@@ -180,7 +205,12 @@ export const POST: RequestHandler = async ({ request }) => {
       if (imageUrls && Array.isArray(imageUrls) && imageUrls.length > 0) {
          // Use the correct field name for the model
          if ((config as any).imageUrlField) {
-             input[(config as any).imageUrlField] = imageUrls;
+             // Qwen2 image-edit expects a single string URL, not an array
+             if ((config as any).qwenSingleImageUrl) {
+               input[(config as any).imageUrlField] = imageUrls[0];
+             } else {
+               input[(config as any).imageUrlField] = imageUrls;
+             }
          }
       } else if ('requiresImages' in config && config.requiresImages) {
         // Only error if images are strictly required

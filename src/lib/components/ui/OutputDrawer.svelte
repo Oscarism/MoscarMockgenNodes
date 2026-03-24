@@ -81,15 +81,30 @@
 
 	function downloadCurrentImage() {
 		if (!lightboxImage) return;
-		const uniqueId = Math.random().toString(36).substring(2, 10).toUpperCase();
-		const timestamp = Date.now().toString(36).toUpperCase();
-		const a = document.createElement('a');
-		a.href = lightboxImage;
-		a.download = `MOSCAR-${uniqueId}${timestamp}.webp`;
-		a.target = '_blank';
-		document.body.appendChild(a);
-		a.click();
-		document.body.removeChild(a);
+		// Blob-based download — avoids the cross-origin new-tab problem
+		const isVideo = /\.(mp4|webm|mov|ogg)(\?.*)?$/i.test(lightboxImage);
+		fetch(lightboxImage)
+			.then((r) => {
+				if (!r.ok) throw new Error('fetch failed');
+				return r.blob();
+			})
+			.then((blob) => {
+				const ext = isVideo ? 'mp4' : 'webp';
+				const uniqueId = Math.random().toString(36).substring(2, 10).toUpperCase();
+				const timestamp = Date.now().toString(36).toUpperCase();
+				const url = URL.createObjectURL(blob);
+				const a = document.createElement('a');
+				a.href = url;
+				a.download = `MOSCAR-${uniqueId}${timestamp}.${ext}`;
+				document.body.appendChild(a);
+				a.click();
+				document.body.removeChild(a);
+				URL.revokeObjectURL(url);
+			})
+			.catch(() => {
+				// Fallback if blob fetch fails (CORS restriction)
+				window.open(lightboxImage, '_blank');
+			});
 	}
 
 	function handleHistoryImageClick(url: string, record: GenerationRecord) {
@@ -169,7 +184,7 @@
 	<!-- Transparent Fixed Header -->
 	<header class="drawer-header">
 		<div class="header-left">
-			<h3>Generated Images</h3>
+			<h3>Generated Media</h3>
 			<span class="count">{images.length}</span>
 		</div>
 		<div class="header-right">

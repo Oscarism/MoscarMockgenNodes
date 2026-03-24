@@ -35,7 +35,11 @@ export type NodeType =
 	| 'furniture'
 	| 'reference'
 	| 'upscale'
-	| 'compare';
+	| 'compare'
+	| 'video-upload'
+	| 'video-quality'
+	| 'video-output'
+	| 'motion-control';
 
 // ============================================
 // Node Data Types
@@ -93,7 +97,71 @@ export type GenerationModel =
   | 'seedream/5-lite-image-to-image'
   | 'seedream/5-lite-text-to-image'
   | 'grok-imagine/image-to-image'
-  | 'gpt-image/1.5-image-to-image';
+  | 'gpt-image/1.5-image-to-image'
+  | 'qwen2/text-to-image'
+  | 'qwen2/image-edit';
+
+// ============================================
+// Video Generation Types (Kling 3.0)
+// ============================================
+export type VideoGenerationModel = 'kling-3.0/video';
+
+export type VideoAspectRatio = '16:9' | '9:16' | '1:1';
+export type VideoMode = 'std' | 'pro';
+export type VideoDuration = '3' | '4' | '5' | '6' | '7' | '8' | '9' | '10' | '11' | '12' | '13' | '14' | '15';
+
+export interface VideoFrame {
+	file?: File;
+	previewUrl: string;
+	hostedUrl?: string;
+	isUploading: boolean;
+	label: string;
+}
+
+export interface VideoUploadNodeData {
+	type: 'video-upload';
+	frames: VideoFrame[]; // index 0 = first frame, index 1 = last frame
+}
+
+export interface VideoQualityNodeData {
+	type: 'video-quality';
+	model: VideoGenerationModel;
+	mode: VideoMode;
+	duration: VideoDuration;
+	aspectRatio: VideoAspectRatio;
+	sound: boolean;
+}
+
+export interface VideoOutputNodeData {
+	type: 'video-output';
+	isGenerating: boolean;
+	currentTaskId?: string;
+	generatedVideoUrl?: string;
+	progress: 'idle' | 'submitted' | 'processing' | 'complete' | 'error';
+	errorMessage?: string;
+}
+
+export interface MotionControlNodeData {
+	type: 'motion-control';
+	// Inputs
+	imagePreviewUrl?: string;
+	imageHostedUrl?: string;
+	imageUploading: boolean;
+	videoPreviewUrl?: string;
+	videoHostedUrl?: string;
+	videoUploading: boolean;
+	// Settings
+	prompt: string;
+	mode: 'std' | 'pro';
+	characterOrientation: 'video' | 'image';
+	backgroundSource: 'input_video' | 'input_image';
+	// Generation state
+	isGenerating: boolean;
+	currentTaskId?: string;
+	generatedVideoUrl?: string;
+	progress: 'idle' | 'submitted' | 'processing' | 'complete' | 'error';
+	errorMessage?: string;
+}
 
 export interface QualityNodeData {
 	type: 'quality';
@@ -331,7 +399,11 @@ export type PromptNodeData =
 	| FurnitureNodeData
 	| ReferenceImageNodeData
 	| UpscaleNodeData
-	| CompareNodeData;
+	| CompareNodeData
+	| VideoUploadNodeData
+	| VideoQualityNodeData
+	| VideoOutputNodeData
+	| MotionControlNodeData;
 
 // ============================================
 // XYFlow Node Types
@@ -456,7 +528,11 @@ export const NODE_COLORS: Record<NodeType, string> = {
 	furniture: '#CD853F', // Peru
 	reference: '#9370DB', // MediumPurple
 	upscale: '#00CED1', // DarkTurquoise
-	compare: '#32CD32' // LimeGreen
+	compare: '#32CD32', // LimeGreen
+	'video-upload': '#7B68EE', // MediumSlateBlue
+	'video-quality': '#FF6347', // Tomato
+	'video-output': '#00FA9A', // MediumSpringGreen
+	'motion-control': '#FF1493'  // DeepPink
 };
 
 // ============================================
@@ -489,7 +565,11 @@ export const NODE_NAMES: Record<NodeType, string> = {
 	furniture: 'Furniture / Objects',
 	reference: 'Reference Images',
 	upscale: 'Image Upscale',
-	compare: 'Image Compare'
+	compare: 'Image Compare',
+	'video-upload': 'Video Frames',
+	'video-quality': 'Video Settings',
+	'video-output': 'Generate Video',
+	'motion-control': 'Motion Control'
 };
 
 // ============================================
@@ -677,5 +757,33 @@ export const DEFAULT_NODE_DATA: Record<NodeType, PromptNodeData> = {
 		originalImageUrl: undefined,
 		upscaledImageUrl: undefined,
 		sliderPosition: 50
+	},
+	'video-upload': {
+		type: 'video-upload',
+		frames: []
+	},
+	'video-quality': {
+		type: 'video-quality',
+		model: 'kling-3.0/video',
+		mode: 'pro',
+		duration: '5',
+		aspectRatio: '16:9',
+		sound: false
+	},
+	'video-output': {
+		type: 'video-output',
+		isGenerating: false,
+		progress: 'idle'
+	},
+	'motion-control': {
+		type: 'motion-control',
+		imageUploading: false,
+		videoUploading: false,
+		prompt: '',
+		mode: 'pro',
+		characterOrientation: 'video',
+		backgroundSource: 'input_video',
+		isGenerating: false,
+		progress: 'idle'
 	}
 };

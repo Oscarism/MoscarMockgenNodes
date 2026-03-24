@@ -25,7 +25,9 @@
 		{ value: 'nano-banana-pro', label: 'Nano B.', description: 'Versatile T2I/I2I with 4K' },
 		{ value: 'nano-banana-2', label: 'Nano B2', description: 'Nano Banana 2 — 20K prompt, exotic ratios' },
 		{ value: 'grok-imagine/image-to-image', label: 'Grok I2I', description: 'Grok image-to-image, 390K prompt' },
-		{ value: 'gpt-image/1.5-image-to-image', label: 'GPT I2I', description: 'GPT-Image 1.5 image editing' }
+		{ value: 'gpt-image/1.5-image-to-image', label: 'GPT I2I', description: 'GPT-Image 1.5 image editing' },
+		{ value: 'qwen2/text-to-image', label: 'Qwen T2I', description: 'Qwen2 text-to-image, 800 char prompt' },
+		{ value: 'qwen2/image-edit', label: 'Qwen Edit', description: 'Qwen2 image editing' }
 	];
 
 	// Quality options for GPT-Image models (uses medium/high instead of basic/high)
@@ -53,7 +55,10 @@
 		// the intersection when combined with other models. Server never sends aspect_ratio for it.
 		'grok-imagine/image-to-image': ['1:1', '4:3', '3:4', '16:9', '9:16', '2:3', '3:2', '21:9', 'auto'],
 		// GPT-Image only supports 3 ratios
-		'gpt-image/1.5-image-to-image': ['1:1', '2:3', '3:2']
+		'gpt-image/1.5-image-to-image': ['1:1', '2:3', '3:2'],
+		// Qwen2 models use image_size instead of aspect_ratio (handled server-side)
+		'qwen2/text-to-image': ['1:1', '3:4', '4:3', '9:16', '16:9'],
+		'qwen2/image-edit': ['1:1', '2:3', '3:2', '3:4', '4:3', '9:16', '16:9', '21:9']
 	};
 
 	// Legacy individual arrays for backwards compatibility
@@ -165,7 +170,8 @@
 			selectedModels.includes('seedream/5-lite-image-to-image') ||
 			selectedModels.includes('flux-2/pro-image-to-image') ||
 			selectedModels.includes('grok-imagine/image-to-image') ||
-			selectedModels.includes('gpt-image/1.5-image-to-image')
+			selectedModels.includes('gpt-image/1.5-image-to-image') ||
+			selectedModels.includes('qwen2/image-edit')
 	);
 
 	// GPT-Image uses medium/high quality instead of basic/high.

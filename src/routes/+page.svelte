@@ -76,7 +76,11 @@
 				FurnitureNode,
 				ReferenceImageNode,
 				ImageUpscaleNode,
-				ImageCompareNode
+				ImageCompareNode,
+				VideoUploadNode,
+				VideoQualityNode,
+				VideoOutputNode,
+				MotionControlNode
 			] = await Promise.all([
 				import('$lib/components/nodes/ProductNode.svelte'),
 				import('$lib/components/nodes/SceneNode.svelte'),
@@ -104,7 +108,11 @@
 				import('$lib/components/nodes/FurnitureNode.svelte'),
 				import('$lib/components/nodes/ReferenceImageNode.svelte'),
 				import('$lib/components/nodes/ImageUpscaleNode.svelte'),
-				import('$lib/components/nodes/ImageCompareNode.svelte')
+				import('$lib/components/nodes/ImageCompareNode.svelte'),
+				import('$lib/components/nodes/VideoUploadNode.svelte'),
+				import('$lib/components/nodes/VideoQualityNode.svelte'),
+				import('$lib/components/nodes/VideoOutputNode.svelte'),
+				import('$lib/components/nodes/MotionControlNode.svelte')
 			]);
 
 			nodeTypes = {
@@ -134,7 +142,11 @@
 				furniture: FurnitureNode.default,
 				reference: ReferenceImageNode.default,
 				upscale: ImageUpscaleNode.default,
-				compare: ImageCompareNode.default
+				compare: ImageCompareNode.default,
+				'video-upload': VideoUploadNode.default,
+				'video-quality': VideoQualityNode.default,
+				'video-output': VideoOutputNode.default,
+				'motion-control': MotionControlNode.default
 			};
 
 			mounted = true;

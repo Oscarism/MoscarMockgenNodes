@@ -36,6 +36,11 @@
 	function getOriginalIndex(colIndex: number, rowIndex: number): number {
 		return rowIndex * 4 + colIndex;
 	}
+
+	// Detect if a URL is a video
+	function isVideoUrl(url: string): boolean {
+		return /\.(mp4|webm|mov|ogg)(\?.*)?$/i.test(url);
+	}
 </script>
 
 <div class="masonry-grid">
@@ -46,9 +51,15 @@
 				<button
 					class="image-card"
 					onclick={() => onImageClick(image, originalIndex)}
-					aria-label="View generated image"
+					aria-label="View generated media"
 				>
-					<img src={image} alt="Generated" loading="lazy" />
+					{#if isVideoUrl(image)}
+						<!-- svelte-ignore a11y_media_has_caption -->
+						<video src={image} muted playsinline preload="metadata" class="video-thumb"></video>
+						<span class="video-badge">▶</span>
+					{:else}
+						<img src={image} alt="Generated" loading="lazy" />
+					{/if}
 					{#if imageModelMap.get(image)}
 						<span class="model-tag">{getModelLabel(imageModelMap.get(image))}</span>
 					{/if}
@@ -91,10 +102,30 @@
 		box-shadow: 0 8px 24px rgba(201, 254, 110, 0.15);
 	}
 
-	.image-card img {
+	.image-card img,
+	.image-card .video-thumb {
 		display: block;
 		width: 100%;
 		height: auto;
+	}
+
+	.video-badge {
+		position: absolute;
+		top: 50%;
+		left: 50%;
+		transform: translate(-50%, -50%);
+		width: 36px;
+		height: 36px;
+		border-radius: 50%;
+		background: rgba(0, 0, 0, 0.6);
+		border: 2px solid rgba(255, 255, 255, 0.6);
+		color: #fff;
+		font-size: 13px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		padding-left: 2px;
+		pointer-events: none;
 	}
 
 	.model-tag {

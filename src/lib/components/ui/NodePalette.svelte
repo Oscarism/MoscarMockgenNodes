@@ -36,6 +36,10 @@
 		{
 			name: 'Output',
 			types: ['output', 'quality', 'variation', 'refine', 'upscale']
+		},
+		{
+			name: 'Video',
+			types: ['video-upload', 'video-quality', 'video-output', 'motion-control']
 		}
 	];
 
@@ -73,7 +77,7 @@
 	.node-palette {
 		position: absolute;
 		top: calc(100% + 8px);
-		min-width: 580px;
+		min-width: 720px;
 		right: 50%;
 		left: auto;
 		transform: translateX(50%);
@@ -86,7 +90,7 @@
 
 	.palette-grid {
 		display: grid;
-		grid-template-columns: repeat(4, 1fr);
+		grid-template-columns: repeat(5, 1fr);
 		gap: var(--space-md);
 		padding: var(--space-sm);
 	}
