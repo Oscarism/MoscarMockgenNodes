@@ -1,5 +1,6 @@
 <script lang="ts">
 	import BaseNode from './BaseNode.svelte';
+	import NodeField from './NodeField.svelte';
 	import type { ClothingNodeData } from '$lib/types';
 	import { clothingTypes, clothingStyles, clothingColors } from '$lib/data/clothing';
 	import { updateNodeData } from '$lib/stores/canvas';
@@ -11,49 +12,15 @@
 
 	let { id, data }: Props = $props();
 
-	function handleTypeChange(event: Event) {
-		const clothingType = (event.target as HTMLSelectElement).value;
-		updateNodeData(id, { clothingType });
-	}
-
-	function handleStyleChange(event: Event) {
-		const style = (event.target as HTMLSelectElement).value;
-		updateNodeData(id, { style });
-	}
-
-	function handleColorChange(event: Event) {
-		const color = (event.target as HTMLSelectElement).value;
-		updateNodeData(id, { color });
+	function handleChange(field: string, value: string) {
+		updateNodeData(id, { [field]: value });
 	}
 </script>
 
 <BaseNode {id} nodeType="clothing">
-	<div class="field">
-		<label for="type-{id}">Clothing Type</label>
-		<select id="type-{id}" value={data.clothingType} onchange={handleTypeChange}>
-			{#each clothingTypes as type}
-				<option value={type}>{type}</option>
-			{/each}
-		</select>
-	</div>
-
-	<div class="field">
-		<label for="style-{id}">Style</label>
-		<select id="style-{id}" value={data.style} onchange={handleStyleChange}>
-			{#each clothingStyles as style}
-				<option value={style}>{style}</option>
-			{/each}
-		</select>
-	</div>
-
-	<div class="field">
-		<label for="color-{id}">Color</label>
-		<select id="color-{id}" value={data.color} onchange={handleColorChange}>
-			{#each clothingColors as color}
-				<option value={color}>{color}</option>
-			{/each}
-		</select>
-	</div>
+	<NodeField {id} label="Clothing Type" field="clothingType" value={data.clothingType} options={clothingTypes} showAny={false} onchange={handleChange} />
+	<NodeField {id} label="Style" field="style" value={data.style} options={clothingStyles} showAny={false} onchange={handleChange} />
+	<NodeField {id} label="Color" field="color" value={data.color} options={clothingColors} showAny={false} onchange={handleChange} />
 
 	<div class="preview">
 		<span class="preview-label">Outfit:</span>
@@ -62,20 +29,6 @@
 </BaseNode>
 
 <style>
-	.field {
-		display: flex;
-		flex-direction: column;
-		gap: var(--space-tiny);
-		margin-bottom: var(--space-sm);
-	}
-
-	.field label {
-		font-size: var(--text-xs);
-		color: var(--color-text-secondary);
-		text-transform: uppercase;
-		letter-spacing: 0.5px;
-	}
-
 	.preview {
 		margin-top: var(--space-sm);
 		padding: var(--space-sm);

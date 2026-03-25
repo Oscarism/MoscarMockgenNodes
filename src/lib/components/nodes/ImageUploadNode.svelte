@@ -36,7 +36,6 @@
 		}
 
 		const result = await response.json();
-		console.log('[Upload] Supabase upload success:', result.publicUrl);
 		return result.publicUrl;
 	}
 
@@ -57,7 +56,6 @@
 		}
 
 		const url = await response.text();
-		console.log('[Upload] Litterbox upload success:', url.trim());
 		return url.trim();
 	}
 

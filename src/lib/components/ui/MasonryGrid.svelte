@@ -19,17 +19,10 @@
 		return cols;
 	});
 
-	// Helper to get friendly model name
+	import { getModelShortLabel } from '$lib/data/models';
 	function getModelLabel(modelId: string | undefined): string {
 		if (!modelId) return '';
-		const labels: Record<string, string> = {
-			'seedream/4.5-text-to-image': 'Seedream',
-			'seedream/4.5-edit': 'Edit',
-			'z-image': 'Z-Img',
-			'flux-2/pro-image-to-image': 'Flux I2I',
-			'nano-banana-pro': 'Nano B.'
-		};
-		return labels[modelId] || modelId;
+		return getModelShortLabel(modelId);
 	}
 
 	// Calculate original index for click handler

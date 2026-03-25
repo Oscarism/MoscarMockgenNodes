@@ -5,6 +5,7 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { env } from '$env/dynamic/private';
+import { validatePrompt, validateAspectRatio, validateOneOf, apiError } from '$lib/server/validation';
 
 const API_KEY = env.KIE_API_KEY;
 const API_BASE_URL = 'https://api.kie.ai/api/v1/jobs';
@@ -21,27 +22,18 @@ export const POST: RequestHandler = async ({ request }) => {
     } = await request.json();
 
     // Validate required fields
-    if (!prompt || typeof prompt !== 'string') {
-      return json({ code: 400, msg: 'Prompt is required' }, { status: 400 });
-    }
+    const promptErr = validatePrompt(prompt, 2500);
+    if (promptErr) return promptErr;
 
-    if (prompt.length > 2500) {
-      return json({ code: 400, msg: 'Prompt exceeds 2500 character limit' }, { status: 400 });
-    }
+    const ratioErr = validateAspectRatio(aspectRatio, ['16:9', '9:16', '1:1']);
+    if (ratioErr) return ratioErr;
 
-    const validRatios = ['16:9', '9:16', '1:1'];
-    if (!validRatios.includes(aspectRatio)) {
-      return json({ code: 400, msg: `Invalid aspect ratio. Must be one of: ${validRatios.join(', ')}` }, { status: 400 });
-    }
-
-    const validModes = ['std', 'pro'];
-    if (!validModes.includes(mode)) {
-      return json({ code: 400, msg: 'Invalid mode. Must be std or pro' }, { status: 400 });
-    }
+    const modeErr = validateOneOf(mode, ['std', 'pro'], 'mode');
+    if (modeErr) return modeErr;
 
     const durationNum = parseInt(duration, 10);
     if (isNaN(durationNum) || durationNum < 3 || durationNum > 15) {
-      return json({ code: 400, msg: 'Duration must be between 3 and 15 seconds' }, { status: 400 });
+      return apiError('Duration must be between 3 and 15 seconds');
     }
 
     // Build input payload
@@ -60,8 +52,6 @@ export const POST: RequestHandler = async ({ request }) => {
       input.image_urls = imageUrls.filter(Boolean);
     }
 
-    console.log(`[VideoAPI] Calling Kling 3.0 with input:`, JSON.stringify(input, null, 2));
-
     const response = await fetch(`${API_BASE_URL}/createTask`, {
       method: 'POST',
       headers: {
@@ -75,8 +65,6 @@ export const POST: RequestHandler = async ({ request }) => {
     });
 
     const data = await response.json();
-    console.log(`[VideoAPI] Response:`, JSON.stringify(data, null, 2));
-
     return json(data);
 
   } catch (error) {

@@ -29,16 +29,9 @@
 		}
 	});
 
-	// Get model names for display
+	import { getModelLabel } from '$lib/data/models';
 	function getModelDisplayNames(models: string[]): string {
-		const nameMap: Record<string, string> = {
-			'seedream/4.5-text-to-image': 'Seedream',
-			'seedream/4.5-edit': 'Seedream Edit',
-			'z-image': 'Z-Image',
-			'flux-2/pro-image-to-image': 'Flux I2I',
-			'nano-banana-pro': 'Nano Banana'
-		};
-		return models.map((m) => nameMap[m] || m).join(', ');
+		return models.map((m) => getModelLabel(m)).join(', ');
 	}
 
 	// Expand state

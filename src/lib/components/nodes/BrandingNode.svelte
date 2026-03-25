@@ -1,5 +1,6 @@
 <script lang="ts">
 	import BaseNode from './BaseNode.svelte';
+	import NodeField from './NodeField.svelte';
 	import type { BrandingNodeData } from '$lib/types';
 	import { updateNodeData } from '$lib/stores/canvas';
 
@@ -24,19 +25,8 @@
 		{ id: 'modern', label: 'Modern' }
 	];
 
-	function handleTextChange(event: Event) {
-		const text = (event.target as HTMLInputElement).value;
-		updateNodeData(id, { text });
-	}
-
-	function handlePlacementChange(event: Event) {
-		const placement = (event.target as HTMLSelectElement).value as BrandingNodeData['placement'];
-		updateNodeData(id, { placement });
-	}
-
-	function handleFontStyleChange(event: Event) {
-		const fontStyle = (event.target as HTMLSelectElement).value as BrandingNodeData['fontStyle'];
-		updateNodeData(id, { fontStyle });
+	function handleChange(field: string, value: string) {
+		updateNodeData(id, { [field]: value });
 	}
 </script>
 
@@ -47,28 +37,13 @@
 			type="text"
 			id="text-{id}"
 			value={data.text}
-			oninput={handleTextChange}
+			oninput={(e) => handleChange('text', (e.target as HTMLInputElement).value)}
 			placeholder="Enter brand name or text..."
 		/>
 	</div>
 
-	<div class="field">
-		<label for="placement-{id}">Placement</label>
-		<select id="placement-{id}" value={data.placement} onchange={handlePlacementChange}>
-			{#each placements as placement}
-				<option value={placement.id}>{placement.label}</option>
-			{/each}
-		</select>
-	</div>
-
-	<div class="field">
-		<label for="font-{id}">Font Style</label>
-		<select id="font-{id}" value={data.fontStyle} onchange={handleFontStyleChange}>
-			{#each fontStyles as style}
-				<option value={style.id}>{style.label}</option>
-			{/each}
-		</select>
-	</div>
+	<NodeField {id} label="Placement" field="placement" value={data.placement} options={placements} showAny={false} onchange={handleChange} />
+	<NodeField {id} label="Font Style" field="fontStyle" value={data.fontStyle} options={fontStyles} showAny={false} onchange={handleChange} />
 
 	{#if data.text}
 		<div class="preview">

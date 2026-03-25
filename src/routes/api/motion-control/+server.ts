@@ -5,6 +5,7 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { env } from '$env/dynamic/private';
+import { validatePrompt, validateRequiredString, apiError } from '$lib/server/validation';
 
 const API_KEY = env.KIE_API_KEY;
 const API_BASE_URL = 'https://api.kie.ai/api/v1/jobs';
@@ -20,17 +21,14 @@ export const POST: RequestHandler = async ({ request }) => {
     } = await request.json();
 
     // Validate required fields
-    if (!imageUrl || typeof imageUrl !== 'string') {
-      return json({ code: 400, msg: 'Reference image URL (imageUrl) is required' }, { status: 400 });
-    }
+    const imageErr = validateRequiredString(imageUrl, 'Reference image URL (imageUrl)');
+    if (imageErr) return imageErr;
 
-    if (!videoUrl || typeof videoUrl !== 'string') {
-      return json({ code: 400, msg: 'Motion video URL (videoUrl) is required' }, { status: 400 });
-    }
+    const videoErr = validateRequiredString(videoUrl, 'Motion video URL (videoUrl)');
+    if (videoErr) return videoErr;
 
-    if (prompt && prompt.length > 2500) {
-      return json({ code: 400, msg: 'Prompt exceeds 2500 character limit' }, { status: 400 });
-    }
+    const promptErr = validatePrompt(prompt, 2500, false);
+    if (promptErr) return promptErr;
 
     // Build input payload.
     // Note: 'mode' is intentionally omitted — the field is optional and the
@@ -47,8 +45,6 @@ export const POST: RequestHandler = async ({ request }) => {
       input.prompt = prompt.trim();
     }
 
-    console.log(`[MotionControlAPI] Calling Kling 3.0 motion-control:`, JSON.stringify(input, null, 2));
-
     const response = await fetch(`${API_BASE_URL}/createTask`, {
       method: 'POST',
       headers: {
@@ -62,8 +58,6 @@ export const POST: RequestHandler = async ({ request }) => {
     });
 
     const data = await response.json();
-    console.log(`[MotionControlAPI] Response:`, JSON.stringify(data, null, 2));
-
     return json(data);
 
   } catch (error) {

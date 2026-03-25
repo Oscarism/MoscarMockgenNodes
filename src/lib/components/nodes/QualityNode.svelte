@@ -2,6 +2,7 @@
 	import BaseNode from './BaseNode.svelte';
 	import type { QualityNodeData, AspectRatio, GenerationModel } from '$lib/types';
 	import { aspectRatioOptions, qualityOptions } from '$lib/data/presets';
+	import { MODEL_REGISTRY, ALL_MODELS, getModelRatios } from '$lib/data/models';
 	import { updateNodeData } from '$lib/stores/canvas';
 
 	interface Props {
@@ -11,72 +12,11 @@
 
 	let { id, data }: Props = $props();
 
-	const modelOptions: { value: GenerationModel; label: string; description: string }[] = [
-		{
-			value: 'seedream/4.5-text-to-image',
-			label: 'Seedream',
-			description: 'Text-to-image, 2K/4K'
-		},
-		{ value: 'seedream/4.5-edit', label: 'Edit', description: 'Image editing' },
-		{ value: 'seedream/5-lite-text-to-image', label: 'SD5 T2I', description: 'Seedream 5 Lite T2I' },
-		{ value: 'seedream/5-lite-image-to-image', label: 'SD5 I2I', description: 'Seedream 5 Lite I2I' },
-		{ value: 'z-image', label: 'Z-Image', description: 'Realistic portraits' },
-		{ value: 'flux-2/pro-image-to-image', label: 'Flux I2I', description: 'Pro image editing' },
-		{ value: 'nano-banana-pro', label: 'Nano B.', description: 'Versatile T2I/I2I with 4K' },
-		{ value: 'nano-banana-2', label: 'Nano B2', description: 'Nano Banana 2 — 20K prompt, exotic ratios' },
-		{ value: 'grok-imagine/image-to-image', label: 'Grok I2I', description: 'Grok image-to-image, 390K prompt' },
-		{ value: 'gpt-image/1.5-image-to-image', label: 'GPT I2I', description: 'GPT-Image 1.5 image editing' },
-		{ value: 'qwen2/text-to-image', label: 'Qwen T2I', description: 'Qwen2 text-to-image, 800 char prompt' },
-		{ value: 'qwen2/image-edit', label: 'Qwen Edit', description: 'Qwen2 image editing' }
-	];
-
-	// Quality options for GPT-Image models (uses medium/high instead of basic/high)
-	const gptImageQualityOptions = [
-		{ id: 'medium', label: 'Medium', value: 'medium' as const, description: 'Balanced quality, faster' },
-		{ id: 'high', label: 'High', value: 'high' as const, description: 'Slow, maximum detail' }
-	];
-
-	// Comprehensive model-to-aspect-ratio mapping
-	const modelRatios: Record<GenerationModel, string[]> = {
-		'seedream/4.5-text-to-image': ['1:1', '4:3', '3:4', '16:9', '9:16', '2:3', '3:2', '21:9'],
-		'seedream/4.5-edit': ['1:1', '4:3', '3:4', '16:9', '9:16', '2:3', '3:2', '21:9'],
-		'seedream/5-lite-text-to-image': ['1:1', '4:3', '3:4', '16:9', '9:16', '2:3', '3:2', '21:9'],
-		'seedream/5-lite-image-to-image': ['1:1', '4:3', '3:4', '16:9', '9:16', '2:3', '3:2', '21:9'],
-		'z-image': ['1:1', '4:3', '3:4', '16:9', '9:16'],
-		'flux-2/pro-image-to-image': ['1:1', '4:3', '3:4', '16:9', '9:16', '3:2', '2:3', 'auto'],
-		'nano-banana-pro': [
-			'1:1', '4:3', '3:4', '16:9', '9:16', '3:2', '2:3', '21:9', '4:5', '5:4', 'auto'
-		],
-		'nano-banana-2': [
-			'1:1', '4:3', '3:4', '16:9', '9:16', '2:3', '3:2', '21:9',
-			'4:5', '5:4', '1:4', '1:8', '4:1', '8:1', 'auto'
-		],
-		// Grok ignores aspect_ratio — map to all standard ratios so it doesn't collapse
-		// the intersection when combined with other models. Server never sends aspect_ratio for it.
-		'grok-imagine/image-to-image': ['1:1', '4:3', '3:4', '16:9', '9:16', '2:3', '3:2', '21:9', 'auto'],
-		// GPT-Image only supports 3 ratios
-		'gpt-image/1.5-image-to-image': ['1:1', '2:3', '3:2'],
-		// Qwen2 models use image_size instead of aspect_ratio (handled server-side)
-		'qwen2/text-to-image': ['1:1', '3:4', '4:3', '9:16', '16:9'],
-		'qwen2/image-edit': ['1:1', '2:3', '3:2', '3:4', '4:3', '9:16', '16:9', '21:9']
-	};
-
-	// Legacy individual arrays for backwards compatibility
-	const zImageRatios = ['1:1', '4:3', '3:4', '16:9', '9:16'];
-	const fluxRatios = ['1:1', '4:3', '3:4', '16:9', '9:16', '3:2', '2:3', 'auto'];
-	const nanoBananaRatios = [
-		'1:1',
-		'4:3',
-		'3:4',
-		'16:9',
-		'9:16',
-		'3:2',
-		'2:3',
-		'21:9',
-		'4:5',
-		'5:4',
-		'auto'
-	];
+	const modelOptions = ALL_MODELS.map(m => ({
+		value: m,
+		label: MODEL_REGISTRY[m].shortLabel,
+		description: MODEL_REGISTRY[m].description,
+	}));
 
 	// Resolution options for different models
 	const resolutionOptions = [
@@ -86,19 +26,17 @@
 	];
 
 	// Get current selected models array (with fallback for backwards compatibility)
-	let selectedModels = $derived(data.models || [data.model] || ['seedream/4.5-text-to-image']);
+	let selectedModels = $derived(data.models || [data.model] || ['nano-banana-2']);
 
 	// Compute intersection of aspect ratios supported by ALL selected models
 	let compatibleRatios = $derived.by(() => {
 		if (selectedModels.length === 0) return aspectRatioOptions.map((r) => r.value);
 
-		// Get ratios supported by the first model
-		let intersection = new Set(modelRatios[selectedModels[0] as GenerationModel] || []);
+		let intersection = new Set(getModelRatios(selectedModels[0] as GenerationModel));
 
-		// Intersect with each subsequent model's supported ratios
 		for (let i = 1; i < selectedModels.length; i++) {
-			const modelRatioList = modelRatios[selectedModels[i] as GenerationModel] || [];
-			intersection = new Set([...intersection].filter((ratio) => modelRatioList.includes(ratio)));
+			const ratioList = getModelRatios(selectedModels[i] as GenerationModel);
+			intersection = new Set([...intersection].filter((ratio) => ratioList.includes(ratio)));
 		}
 
 		return [...intersection];
@@ -126,60 +64,34 @@
 
 		// Find which models don't support the current ratio
 		const incompatibleModels = selectedModels.filter((model) => {
-			const supported = modelRatios[model as GenerationModel] || [];
+			const supported = getModelRatios(model as GenerationModel);
 			return !supported.includes(data.aspectRatio);
 		});
 
 		if (incompatibleModels.length === 0) return null;
 
 		const modelNames = incompatibleModels
-			.map((m) => {
-				const option = modelOptions.find((o) => o.value === m);
-				return option?.label || m;
-			})
+			.map((m) => MODEL_REGISTRY[m as GenerationModel]?.shortLabel || m)
 			.join(', ');
 
 		return `⚠️ ${data.aspectRatio} not supported by: ${modelNames}. Select a different ratio or remove incompatible models.`;
 	});
 
 	// RESOLUTIONS
-	let currentResolutionOptions = $derived.by(() => {
-		const anyNanoBanana = selectedModels.includes('nano-banana-pro');
-		if (anyNanoBanana) {
-			return resolutionOptions;
-		}
-		// Flux only supports 1K/2K
-		return resolutionOptions.filter((r) => r.value !== '4K');
-	});
+	let currentResolutionOptions = $derived(resolutionOptions);
 
-	// Model capability checks (based on any selected model)
-	let isFluxModel = $derived(selectedModels.some((m) => m?.startsWith('flux-2/')));
-	let isNanoBanana = $derived(selectedModels.includes('nano-banana-pro') || selectedModels.includes('nano-banana-2'));
+	// Model capability checks (derived from registry)
 	let supportsQuality = $derived(
-		selectedModels.some((m) =>
-			m === 'seedream/4.5-text-to-image' ||
-			m === 'seedream/4.5-edit' ||
-			m === 'seedream/5-lite-text-to-image' ||
-			m === 'seedream/5-lite-image-to-image'
-		)
+		selectedModels.some((m) => MODEL_REGISTRY[m as GenerationModel]?.supportsQuality)
 	);
-	let supportsResolution = $derived(isFluxModel || isNanoBanana);
-
+	let supportsResolution = $derived(
+		selectedModels.some((m) => MODEL_REGISTRY[m as GenerationModel]?.supportsResolution)
+	);
 	let requiresImages = $derived(
-		selectedModels.includes('seedream/4.5-edit') ||
-			selectedModels.includes('seedream/5-lite-image-to-image') ||
-			selectedModels.includes('flux-2/pro-image-to-image') ||
-			selectedModels.includes('grok-imagine/image-to-image') ||
-			selectedModels.includes('gpt-image/1.5-image-to-image') ||
-			selectedModels.includes('qwen2/image-edit')
+		selectedModels.some((m) => MODEL_REGISTRY[m as GenerationModel]?.requiresImage)
 	);
 
-	// GPT-Image uses medium/high quality instead of basic/high.
-	// Show the right buttons based on what models are selected.
-	let isGptImageOnly = $derived(
-		selectedModels.length === 1 && selectedModels[0] === 'gpt-image/1.5-image-to-image'
-	);
-	let currentQualityOptions = $derived(isGptImageOnly ? gptImageQualityOptions : qualityOptions);
+	let currentQualityOptions = $derived(qualityOptions);
 
 	function handleRatioChange(event: Event) {
 		const aspectRatio = (event.target as HTMLSelectElement).value as AspectRatio;
@@ -200,17 +112,10 @@
 			currentModels.push(model);
 		}
 
-		// Reset aspect ratio if z-image is selected and current ratio not supported
-		let updates: Partial<QualityNodeData> = {
+		updateNodeData(id, {
 			models: currentModels,
 			model: currentModels[0] // Keep first selected as primary for backwards compat
-		};
-
-		if (currentModels.includes('z-image') && !zImageRatios.includes(data.aspectRatio)) {
-			updates.aspectRatio = '1:1';
-		}
-
-		updateNodeData(id, updates);
+		});
 	}
 </script>
 

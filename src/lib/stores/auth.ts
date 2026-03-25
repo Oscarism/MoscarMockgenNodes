@@ -21,6 +21,9 @@ const initialState: AuthState = {
   initialized: false
 };
 
+// Login event callbacks — avoids circular dependency with generation store
+const _onLoginCallbacks: Array<(user: User) => void | Promise<void>> = [];
+
 function createAuthStore() {
   const { subscribe, set, update } = writable<AuthState>(initialState);
 
@@ -59,13 +62,12 @@ function createAuthStore() {
             loading: false,
             initialized: true
           });
-          
-          // Load user history when they log in
+
+          // Notify listeners (e.g. generation store) without direct import
           if (session?.user && _event === 'SIGNED_IN') {
-            // Dynamic import to avoid circular dependency
-            const { fetchUserHistory, hiddenImages } = await import('./generation');
-            await fetchUserHistory();
-            await hiddenImages.loadFromDatabase();
+            for (const cb of _onLoginCallbacks) {
+              try { await cb(session.user); } catch {}
+            }
           }
         });
 
@@ -100,15 +102,12 @@ function createAuthStore() {
      * Sign up with email and password
      */
     async signUpWithEmail(email: string, password: string): Promise<{ error: AuthError | null }> {
-      console.log('[Auth] signUpWithEmail called with:', email);
       update(s => ({ ...s, loading: true }));
 
       const { data, error } = await supabase.auth.signUp({
         email,
         password
       });
-
-      console.log('[Auth] signUp response:', { data, error });
 
       if (error) {
         update(s => ({ ...s, loading: false }));
@@ -164,6 +163,14 @@ function createAuthStore() {
      */
     isLoggedIn(): boolean {
       return get({ subscribe }).user !== null;
+    },
+
+    /**
+     * Register a callback for login events.
+     * Use this instead of importing generation store (avoids circular dependency).
+     */
+    onLogin(cb: (user: User) => void | Promise<void>) {
+      _onLoginCallbacks.push(cb);
     }
   };
 }

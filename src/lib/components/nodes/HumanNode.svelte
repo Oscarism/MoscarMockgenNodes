@@ -1,5 +1,6 @@
 <script lang="ts">
 	import BaseNode from './BaseNode.svelte';
+	import NodeField from './NodeField.svelte';
 	import type { HumanNodeData } from '$lib/types';
 	import {
 		bodyTypes,
@@ -53,125 +54,14 @@
 	</div>
 
 	<div class="fields-grid">
-		<!-- Ethnicity -->
-		<div class="field">
-			<label for="ethnicity-{id}">Ethnicity</label>
-			<select
-				id="ethnicity-{id}"
-				value={data.ethnicity || ''}
-				onchange={(e) => handleChange('ethnicity', (e.target as HTMLSelectElement).value)}
-			>
-				<option value="">Any</option>
-				{#each ethnicities as eth}
-					<option value={eth}>{eth}</option>
-				{/each}
-			</select>
-		</div>
-
-		<!-- Age -->
-		<div class="field">
-			<label for="age-{id}">Age Range</label>
-			<select
-				id="age-{id}"
-				value={data.ageRange || ''}
-				onchange={(e) => handleChange('ageRange', (e.target as HTMLSelectElement).value)}
-			>
-				<option value="">Any</option>
-				{#each ageRanges as age}
-					<option value={age}>{age}</option>
-				{/each}
-			</select>
-		</div>
-
-		<!-- Body Type -->
-		<div class="field">
-			<label for="body-{id}">Body Type</label>
-			<select
-				id="body-{id}"
-				value={data.bodyType || ''}
-				onchange={(e) => handleChange('bodyType', (e.target as HTMLSelectElement).value)}
-			>
-				<option value="">Any</option>
-				{#each bodyTypes as type}
-					<option value={type}>{type}</option>
-				{/each}
-			</select>
-		</div>
-
-		<!-- Pose -->
-		<div class="field">
-			<label for="pose-{id}">Pose</label>
-			<select
-				id="pose-{id}"
-				value={data.pose || ''}
-				onchange={(e) => handleChange('pose', (e.target as HTMLSelectElement).value)}
-			>
-				<option value="">Any</option>
-				{#each poses as pose}
-					<option value={pose}>{pose}</option>
-				{/each}
-			</select>
-		</div>
-
-		<!-- Expression -->
-		<div class="field">
-			<label for="expr-{id}">Expression</label>
-			<select
-				id="expr-{id}"
-				value={data.expression || ''}
-				onchange={(e) => handleChange('expression', (e.target as HTMLSelectElement).value)}
-			>
-				<option value="">Any</option>
-				{#each expressions as expr}
-					<option value={expr}>{expr}</option>
-				{/each}
-			</select>
-		</div>
-
-		<!-- Hair Style -->
-		<div class="field">
-			<label for="hairstyle-{id}">Hair Style</label>
-			<select
-				id="hairstyle-{id}"
-				value={data.hairStyle || ''}
-				onchange={(e) => handleChange('hairStyle', (e.target as HTMLSelectElement).value)}
-			>
-				<option value="">Any</option>
-				{#each hairStyles as style}
-					<option value={style}>{style}</option>
-				{/each}
-			</select>
-		</div>
-
-		<!-- Hair Color -->
-		<div class="field">
-			<label for="haircolor-{id}">Hair Color</label>
-			<select
-				id="haircolor-{id}"
-				value={data.hairColor || ''}
-				onchange={(e) => handleChange('hairColor', (e.target as HTMLSelectElement).value)}
-			>
-				<option value="">Any</option>
-				{#each hairColors as color}
-					<option value={color}>{color}</option>
-				{/each}
-			</select>
-		</div>
-
-		<!-- Skin Imperfections -->
-		<div class="field">
-			<label for="imperfections-{id}">Skin Features</label>
-			<select
-				id="imperfections-{id}"
-				value={data.skinImperfections || ''}
-				onchange={(e) => handleChange('skinImperfections', (e.target as HTMLSelectElement).value)}
-			>
-				<option value="">Any</option>
-				{#each skinImperfections as imp}
-					<option value={imp}>{imp}</option>
-				{/each}
-			</select>
-		</div>
+		<NodeField {id} label="Ethnicity" field="ethnicity" value={data.ethnicity || ''} options={ethnicities} onchange={handleChange} />
+		<NodeField {id} label="Age Range" field="ageRange" value={data.ageRange || ''} options={ageRanges} onchange={handleChange} />
+		<NodeField {id} label="Body Type" field="bodyType" value={data.bodyType || ''} options={bodyTypes} onchange={handleChange} />
+		<NodeField {id} label="Pose" field="pose" value={data.pose || ''} options={poses} onchange={handleChange} />
+		<NodeField {id} label="Expression" field="expression" value={data.expression || ''} options={expressions} onchange={handleChange} />
+		<NodeField {id} label="Hair Style" field="hairStyle" value={data.hairStyle || ''} options={hairStyles} onchange={handleChange} />
+		<NodeField {id} label="Hair Color" field="hairColor" value={data.hairColor || ''} options={hairColors} onchange={handleChange} />
+		<NodeField {id} label="Skin Features" field="skinImperfections" value={data.skinImperfections || ''} options={skinImperfections} onchange={handleChange} />
 	</div>
 
 	<!-- Skin Tone Swatches -->
@@ -259,11 +149,6 @@
 		color: var(--color-text-secondary);
 		text-transform: uppercase;
 		letter-spacing: 0.5px;
-	}
-
-	.field select {
-		padding: 4px 6px;
-		font-size: 11px;
 	}
 
 	.field textarea {

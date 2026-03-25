@@ -12,8 +12,15 @@ const supabaseAnonKey = PUBLIC_SUPABASE_ANON_KEY || '';
 // Check if Supabase is configured
 export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
 
+// Warn once when running without Supabase
+let _mockWarned = false;
+
 // Create a mock client for when Supabase is not configured
 const createMockClient = (): SupabaseClient => {
+  if (!_mockWarned) {
+    _mockWarned = true;
+    console.warn('[Supabase] Not configured — running with mock client. Auth, storage, and database features are disabled.');
+  }
   return {
     auth: {
       getSession: async () => ({ data: { session: null }, error: null }),
@@ -43,10 +50,7 @@ export const supabase: SupabaseClient = isSupabaseConfigured
   ? createBrowserClient(supabaseUrl, supabaseAnonKey)
   : createMockClient();
 
-// Also export the function for cases where a new client is needed
+// Re-export the singleton — kept for call-site compatibility
 export function createSupabaseBrowserClient() {
-  if (!isSupabaseConfigured) {
-    return createMockClient();
-  }
-  return createBrowserClient(supabaseUrl, supabaseAnonKey);
+  return supabase;
 }

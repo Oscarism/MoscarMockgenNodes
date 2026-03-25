@@ -665,25 +665,6 @@ function compileReferenceSegment(data: ReferenceImageNodeData): string {
 }
 
 // ============================================
-// Quality Descriptors - NOW MODE-AWARE
-// These are kept for backwards compatibility but
-// the actual presets come from generationMode store
-// ============================================
-
-// Legacy constants - kept for reference, not used directly
-const LEGACY_QUALITY_PREFIXES = [
-  'Professional product photography',
-  'High resolution commercial mockup',
-  '8K quality',
-];
-
-const LEGACY_QUALITY_SUFFIXES = [
-  'realistic shadows and lighting',
-  'photorealistic materials and textures',
-  'professional studio quality'
-];
-
-// ============================================
 // Main Prompt Compiler
 // ============================================
 
@@ -731,79 +712,36 @@ export function compilePrompt(
       continue;
     }
     
-    let content = '';
-    
-    switch (node.data.type) {
-      case 'product':
-        content = compileProductSegment(node.data as ProductNodeData);
-        break;
-      case 'scene':
-        content = compileSceneSegment(node.data as SceneNodeData);
-        break;
-      case 'style':
-        content = compileStyleSegment(node.data as StyleNodeData);
-        break;
-      case 'branding':
-        content = compileBrandingSegment(node.data as BrandingNodeData);
-        break;
-      case 'lighting':
-        content = compileLightingSegment(node.data as LightingNodeData);
-        break;
-      case 'camera':
-        content = compileCameraSegment(node.data as CameraNodeData);
-        break;
-      case 'custom':
-        content = (node.data as CustomPromptNodeData).promptText || '';
-        break;
-      case 'image':
-        // Image node adds reference to uploaded images
-        const imageData = node.data as ImageUploadNodeData;
-        const uploadedCount = imageData.images.filter(img => img.hostedUrl).length;
-        if (uploadedCount > 0) {
-          content = `with ${uploadedCount} reference image${uploadedCount > 1 ? 's' : ''}`;
-        }
-        break;
-      case 'human':
-        content = compileHumanSegment(node.data as HumanNodeData);
-        break;
-      case 'clothing':
-        content = compileClothingSegment(node.data as ClothingNodeData);
-        break;
-      case 'variation':
-        content = compileVariationSegment(node.data as VariationNodeData);
-        break;
-      case 'plant':
-        content = compilePlantSegment(node.data as PlantNodeData);
-        break;
-      case 'texture':
-        content = compileTextureSegment(node.data as TextureNodeData);
-        break;
-      case 'pose':
-        content = compilePoseSegment(node.data as PoseNodeData);
-        break;
-      case 'background':
-        content = compileBackgroundSegment(node.data as BackgroundNodeData);
-        break;
-      case 'photography':
-        content = compilePhotographySegment(node.data as PhotographyNodeData);
-        break;
-      case 'animal':
-        content = compileAnimalSegment(node.data as AnimalNodeData);
-        break;
-      case 'accessory':
-        content = compileAccessorySegment(node.data as AccessoryNodeData);
-        break;
-      case 'expression':
-        content = compileExpressionSegment(node.data as ExpressionNodeData);
-        break;
-      case 'furniture':
-        content = compileFurnitureSegment(node.data as FurnitureNodeData);
-        break;
-      case 'reference':
-        content = compileReferenceSegment(node.data as ReferenceImageNodeData);
-        break;
-      // Quality node doesn't add to prompt text, only affects API params
-    }
+    // Node type → compiler map (quality/output/batch don't add to prompt text)
+    const compilers: Record<string, (data: any) => string> = {
+      product: compileProductSegment,
+      scene: compileSceneSegment,
+      style: compileStyleSegment,
+      branding: compileBrandingSegment,
+      lighting: compileLightingSegment,
+      camera: compileCameraSegment,
+      custom: (d: CustomPromptNodeData) => d.promptText || '',
+      image: (d: ImageUploadNodeData) => {
+        const count = d.images.filter(img => img.hostedUrl).length;
+        return count > 0 ? `with ${count} reference image${count > 1 ? 's' : ''}` : '';
+      },
+      human: compileHumanSegment,
+      clothing: compileClothingSegment,
+      variation: compileVariationSegment,
+      plant: compilePlantSegment,
+      texture: compileTextureSegment,
+      pose: compilePoseSegment,
+      background: compileBackgroundSegment,
+      photography: compilePhotographySegment,
+      animal: compileAnimalSegment,
+      accessory: compileAccessorySegment,
+      expression: compileExpressionSegment,
+      furniture: compileFurnitureSegment,
+      reference: compileReferenceSegment,
+    };
+
+    const compiler = compilers[node.data.type];
+    const content = compiler ? compiler(node.data) : '';
     
     if (content.trim()) {
       segments.push({
@@ -900,7 +838,7 @@ export function getQualitySettings(
 ): { aspectRatio: string; quality: 'basic' | 'high'; model: string; models: string[]; resolution: string } {
   const outputNode = nodes.find(n => n.data.type === 'output');
   if (!outputNode) {
-    return { aspectRatio: '1:1', quality: 'basic', model: 'seedream/4.5-text-to-image', models: ['seedream/4.5-text-to-image'], resolution: '1K' };
+    return { aspectRatio: '1:1', quality: 'basic', model: 'nano-banana-2', models: ['nano-banana-2'], resolution: '1K' };
   }
   
   const connectedNodeIds = getConnectedNodeIds(outputNode.id, edges);
@@ -913,13 +851,13 @@ export function getQualitySettings(
     return {
       aspectRatio: data.aspectRatio,
       quality: data.quality,
-      model: data.model || 'seedream/4.5-text-to-image',
-      models: data.models || [data.model || 'seedream/4.5-text-to-image'],
+      model: data.model || 'nano-banana-2',
+      models: data.models || [data.model || 'nano-banana-2'],
       resolution: (data as any).resolution || '1K'
     };
   }
   
-  return { aspectRatio: '1:1', quality: 'basic', model: 'seedream/4.5-text-to-image', models: ['seedream/4.5-text-to-image'], resolution: '1K' };
+  return { aspectRatio: '1:1', quality: 'basic', model: 'nano-banana-2', models: ['nano-banana-2'], resolution: '1K' };
 }
 
 /**
@@ -1057,8 +995,6 @@ function getOrderedConnectedNodes(targetId: string, edges: PromptEdge[], nodes: 
     .map(id => nodes.find(n => n.id === id))
     .filter((n): n is PromptNode => n !== undefined);
   
-  console.log('[PromptCompiler] Node order:', orderedNodes.map(n => n.data.type));
-  
   return orderedNodes;
 }
 
@@ -1068,38 +1004,6 @@ function getOrderedConnectedNodes(targetId: string, edges: PromptEdge[], nodes: 
 export function estimateTokens(text: string): number {
   // Rough estimate: ~4 characters per token for English
   return Math.ceil(text.length / 4);
-}
-
-/**
- * Get all uploaded image URLs from connected image nodes
- * Returns array of hosted URLs ready for the Edit API
- */
-export function getImageUrls(
-  nodes: PromptNode[], 
-  edges: PromptEdge[]
-): string[] {
-  const outputNode = nodes.find(n => n.data.type === 'output');
-  if (!outputNode) {
-    return [];
-  }
-  
-  const connectedNodeIds = getConnectedNodeIds(outputNode.id, edges);
-  const imageNodes = nodes.filter(
-    n => connectedNodeIds.has(n.id) && n.data.type === 'image'
-  );
-  
-  const urls: string[] = [];
-  
-  for (const node of imageNodes) {
-    const data = node.data as ImageUploadNodeData;
-    for (const image of data.images) {
-      if (image.hostedUrl) {
-        urls.push(image.hostedUrl);
-      }
-    }
-  }
-  
-  return urls;
 }
 
 /**

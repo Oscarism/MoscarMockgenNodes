@@ -54,19 +54,12 @@
 	let lightboxImage = $state('');
 	let lightboxModel = $state('');
 
-	// Helper to get friendly model name
+	// Helper to get friendly model name (from central registry + local overrides)
+	import { getModelLabel as _getModelLabel } from '$lib/data/models';
 	function getModelLabel(modelId: string | undefined): string {
 		if (!modelId) return 'Unknown';
-		const labels: Record<string, string> = {
-			'seedream/4.5-text-to-image': 'Seedream',
-			'seedream/4.5-edit': 'Seedream Edit',
-			'z-image': 'Z-Image',
-			'flux-2/pro-image-to-image': 'Flux I2I',
-			'nano-banana-pro': 'Nano Banana',
-			upscale: 'Upscale',
-			'comfyui-upscale': 'Upscale'
-		};
-		return labels[modelId] || modelId;
+		if (modelId === 'upscale' || modelId === 'comfyui-upscale') return 'Upscale';
+		return _getModelLabel(modelId);
 	}
 
 	function openLightbox(url: string) {
@@ -123,29 +116,15 @@
 
 	// Load GSAP on mount
 	onMount(async () => {
-		console.log('[OutputDrawer] Loading GSAP...');
 		const gsapModule = await import('gsap');
 		gsap = gsapModule.gsap;
-		console.log('[OutputDrawer] GSAP loaded:', gsap);
 	});
 
 	// Animate drawer open/close
 	$effect(() => {
-		console.log(
-			'[OutputDrawer] $effect triggered, mode:',
-			mode,
-			'gsap:',
-			!!gsap,
-			'drawerEl:',
-			!!drawerEl
-		);
-
 		if (!drawerEl || !gsap) {
-			console.log('[OutputDrawer] Skipping animation - missing', !drawerEl ? 'drawerEl' : 'gsap');
 			return;
 		}
-
-		console.log('[OutputDrawer] Running GSAP animation for mode:', mode);
 
 		if (mode === 'collapsed') {
 			gsap.to(drawerEl, {

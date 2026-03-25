@@ -21,6 +21,12 @@ export interface DbGeneration {
   created_at: string;
 }
 
+/** Standardized result type for mutation operations */
+export interface DbResult<T = void> {
+  data: T | null;
+  error: string | null;
+}
+
 /**
  * Save a generation record to the database
  */
@@ -28,10 +34,9 @@ export async function saveGeneration(
   userId: string,
   record: GenerationRecord,
   enhancedPrompt?: string | null
-): Promise<string | null> {
+): Promise<DbResult<string>> {
   if (!isSupabaseConfigured) {
-    console.log('[DB] Supabase not configured, skipping save');
-    return null;
+    return { data: null, error: 'Supabase not configured' };
   }
 
   try {
@@ -54,14 +59,13 @@ export async function saveGeneration(
 
     if (error) {
       console.error('[DB] Failed to save generation:', error);
-      return null;
+      return { data: null, error: error.message };
     }
 
-    console.log('[DB] Generation saved:', data.id);
-    return data.id;
-  } catch (error) {
-    console.error('[DB] Save error:', error);
-    return null;
+    return { data: data.id, error: null };
+  } catch (err) {
+    console.error('[DB] Save error:', err);
+    return { data: null, error: err instanceof Error ? err.message : 'Unknown error' };
   }
 }
 
@@ -73,8 +77,8 @@ export async function updateGeneration(
   state: string,
   resultUrls?: string[],
   errorMessage?: string
-): Promise<boolean> {
-  if (!isSupabaseConfigured) return false;
+): Promise<DbResult> {
+  if (!isSupabaseConfigured) return { data: null, error: 'Supabase not configured' };
 
   try {
     const updates: Record<string, any> = { state };
@@ -88,23 +92,25 @@ export async function updateGeneration(
 
     if (error) {
       console.error('[DB] Failed to update generation:', error);
-      return false;
+      return { data: null, error: error.message };
     }
 
-    console.log('[DB] Generation updated by task_id:', taskId);
-    return true;
-  } catch (error) {
-    console.error('[DB] Update error:', error);
-    return false;
+    return { data: null, error: null };
+  } catch (err) {
+    console.error('[DB] Update error:', err);
+    return { data: null, error: err instanceof Error ? err.message : 'Unknown error' };
   }
 }
 
 /**
  * Load user's generation history
  */
-export async function loadGenerationHistory(userId: string): Promise<GenerationRecord[]> {
+export async function loadGenerationHistory(
+  userId: string,
+  limit: number = 100,
+  offset: number = 0
+): Promise<GenerationRecord[]> {
   if (!isSupabaseConfigured) {
-    console.log('[DB] Supabase not configured, returning empty history');
     return [];
   }
 
@@ -114,7 +120,7 @@ export async function loadGenerationHistory(userId: string): Promise<GenerationR
       .select('*')
       .eq('user_id', userId)
       .order('created_at', { ascending: false })
-      .limit(100);
+      .range(offset, offset + limit - 1);
 
     if (error) {
       console.error('[DB] Failed to load history:', error);
@@ -135,7 +141,6 @@ export async function loadGenerationHistory(userId: string): Promise<GenerationR
       errorMessage: row.error_message || undefined
     }));
 
-    console.log(`[DB] Loaded ${records.length} generation records`);
     return records;
   } catch (error) {
     console.error('[DB] Load error:', error);
@@ -146,8 +151,8 @@ export async function loadGenerationHistory(userId: string): Promise<GenerationR
 /**
  * Delete a generation record
  */
-export async function deleteGeneration(generationId: string): Promise<boolean> {
-  if (!isSupabaseConfigured) return false;
+export async function deleteGeneration(generationId: string): Promise<DbResult> {
+  if (!isSupabaseConfigured) return { data: null, error: 'Supabase not configured' };
 
   try {
     const { error } = await supabase
@@ -157,14 +162,13 @@ export async function deleteGeneration(generationId: string): Promise<boolean> {
 
     if (error) {
       console.error('[DB] Failed to delete generation:', error);
-      return false;
+      return { data: null, error: error.message };
     }
 
-    console.log('[DB] Generation deleted:', generationId);
-    return true;
-  } catch (error) {
-    console.error('[DB] Delete error:', error);
-    return false;
+    return { data: null, error: null };
+  } catch (err) {
+    console.error('[DB] Delete error:', err);
+    return { data: null, error: err instanceof Error ? err.message : 'Unknown error' };
   }
 }
 
@@ -175,8 +179,8 @@ export async function deleteGeneration(generationId: string): Promise<boolean> {
 /**
  * Save hidden image URLs to user settings
  */
-export async function saveHiddenImages(userId: string, hiddenUrls: string[]): Promise<boolean> {
-  if (!isSupabaseConfigured) return false;
+export async function saveHiddenImages(userId: string, hiddenUrls: string[]): Promise<DbResult> {
+  if (!isSupabaseConfigured) return { data: null, error: 'Supabase not configured' };
 
   try {
     // Use upsert to create or update user settings
@@ -192,14 +196,13 @@ export async function saveHiddenImages(userId: string, hiddenUrls: string[]): Pr
 
     if (error) {
       console.error('[DB] Failed to save hidden images:', error);
-      return false;
+      return { data: null, error: error.message };
     }
 
-    console.log(`[DB] Saved ${hiddenUrls.length} hidden images for user`);
-    return true;
-  } catch (error) {
-    console.error('[DB] Save hidden images error:', error);
-    return false;
+    return { data: null, error: null };
+  } catch (err) {
+    console.error('[DB] Save hidden images error:', err);
+    return { data: null, error: err instanceof Error ? err.message : 'Unknown error' };
   }
 }
 
@@ -226,7 +229,6 @@ export async function loadHiddenImages(userId: string): Promise<string[]> {
     }
 
     const hiddenUrls = data?.hidden_images || [];
-    console.log(`[DB] Loaded ${hiddenUrls.length} hidden images for user`);
     return hiddenUrls;
   } catch (error) {
     console.error('[DB] Load hidden images error:', error);

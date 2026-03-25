@@ -43,9 +43,7 @@
 	}
 
 	function handleReset() {
-		console.log('[TopBar] handleReset called - clearing canvas directly');
 		clearCanvas();
-		console.log('[TopBar] clearCanvas completed');
 	}
 
 	function handleShowHistory() {

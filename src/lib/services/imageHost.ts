@@ -27,7 +27,6 @@ async function uploadToSupabase(file: File): Promise<string> {
   }
 
   const result = await response.json();
-  console.log('[ImageHost] Supabase upload success:', result.publicUrl);
   return result.publicUrl;
 }
 
@@ -51,7 +50,6 @@ async function uploadToLitterbox(file: File): Promise<string> {
   }
 
   const url = await response.text();
-  console.log('[ImageHost] Litterbox upload success:', url.trim());
   return url.trim();
 }
 

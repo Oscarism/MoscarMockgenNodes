@@ -162,16 +162,8 @@
 		const storeNodes = $nodes;
 		const storeCount = storeNodes.length;
 
-		console.log(
-			'[Sync] Effect triggered - Store nodes:',
-			storeCount,
-			'Local nodes:',
-			currentNodes.length
-		);
-
 		// Handle reset (store is empty)
 		if (storeCount === 0 && currentNodes.length > 0) {
-			console.log('[Sync] RESET detected - clearing local nodes');
 			currentNodes = [];
 			lastNodeCount = 0;
 			return;
@@ -184,7 +176,6 @@
 
 		// If less than half of store nodes exist locally, it's a full replace
 		if (storeCount > 0 && existingCount < storeCount / 2) {
-			console.log('[Sync] FULL REPLACE detected');
 			currentNodes = storeNodes;
 			lastNodeCount = storeCount;
 			return;
@@ -192,14 +183,12 @@
 
 		// Handle deletions - remove local nodes that don't exist in store
 		if (storeCount < currentNodes.length) {
-			console.log('[Sync] DELETION detected - filtering local nodes');
 			currentNodes = currentNodes.filter((n) => storeNodeIds.has(n.id));
 			lastNodeCount = storeCount;
 		}
 
 		// Detect if nodes were added
 		if (storeCount > lastNodeCount) {
-			console.log('[Sync] ADDITION detected - adding new nodes');
 			for (const storeNode of storeNodes) {
 				const existsLocally = currentNodes.some((n) => n.id === storeNode.id);
 				if (!existsLocally) {
@@ -210,12 +199,13 @@
 		lastNodeCount = storeCount;
 
 		// Only sync data updates for nodes that already exist locally
+		// Use reference equality instead of JSON.stringify for performance
 		let needsUpdate = false;
 		const newNodes = currentNodes.map((localNode) => {
 			const storeNode = storeNodes.find((n) => n.id === localNode.id);
-			if (storeNode && JSON.stringify(localNode.data) !== JSON.stringify(storeNode.data)) {
+			if (storeNode && storeNode.data !== localNode.data) {
 				needsUpdate = true;
-				return { ...localNode, data: { ...storeNode.data } };
+				return { ...localNode, data: storeNode.data };
 			}
 			return localNode;
 		});
@@ -281,12 +271,6 @@
 
 		// Detect if SvelteFlow deleted nodes (local decreased, store stayed same or higher)
 		if (localCount < prevLocalNodeCount && localCount < storeCount) {
-			console.log('[LocalSync] SvelteFlow deleted nodes - syncing to store', {
-				local: localCount,
-				store: storeCount,
-				prev: prevLocalNodeCount
-			});
-
 			// Get IDs of nodes that exist in local
 			const localNodeIds = new Set(currentNodes.map((n) => n.id));
 
@@ -302,18 +286,10 @@
 
 	// Handle node changes from SvelteFlow - update Store
 	function handleNodesChange(changes: any) {
-		console.log(
-			'[NodesChange] Changes received:',
-			changes?.length,
-			changes?.map((c: any) => c.type)
-		);
-
 		// Process changes explicitly
 		for (const change of changes || []) {
 			if (change.type === 'remove') {
 				const nodeId = change.id;
-				console.log('[NodesChange] REMOVE event for node:', nodeId);
-
 				// Explicitly remove from store
 				nodes.update((n) => n.filter((node) => node.id !== nodeId));
 				edges.update((e) => e.filter((edge) => edge.source !== nodeId && edge.target !== nodeId));
@@ -350,17 +326,20 @@
 	// Handle node selection - must set 'selected' property for delete to work
 	function handleNodeClick(event: any) {
 		const node = event?.node;
-		if (node?.id) {
-			selectedNodeId.set(node.id);
-			// Update nodes to mark this one as selected
-			currentNodes = currentNodes.map((n) => ({
-				...n,
-				selected: n.id === node.id
-			}));
-		}
+		if (!node?.id) return;
+		// Skip if already selected
+		if (get(selectedNodeId) === node.id) return;
+		selectedNodeId.set(node.id);
+		// Update nodes to mark this one as selected
+		currentNodes = currentNodes.map((n) => ({
+			...n,
+			selected: n.id === node.id
+		}));
 	}
 
 	function handlePaneClick() {
+		// Skip if nothing is selected
+		if (get(selectedNodeId) === null) return;
 		selectedNodeId.set(null);
 		// Clear selection from all nodes
 		currentNodes = currentNodes.map((n) => ({
@@ -378,21 +357,16 @@
 	let flowInstance: any = $state(null);
 
 	function handleZoomIn() {
-		console.log('[Zoom] handleZoomIn called, flowInstance:', !!flowInstance);
 		if (flowInstance) {
-			console.log('[Zoom] flowInstance methods:', Object.keys(flowInstance || {}));
 			const viewport = flowInstance.getViewport?.();
-			console.log('[Zoom] Current viewport:', viewport);
 			if (viewport) {
 				const newZoom = Math.min(viewport.zoom * 1.2, 2);
-				console.log('[Zoom] Setting new zoom:', newZoom);
 				flowInstance.setViewport?.({ ...viewport, zoom: newZoom });
 			}
 		}
 	}
 
 	function handleZoomOut() {
-		console.log('[Zoom] handleZoomOut called, flowInstance:', !!flowInstance);
 		if (flowInstance) {
 			const viewport = flowInstance.getViewport?.();
 			if (viewport) {
@@ -403,7 +377,6 @@
 	}
 
 	function handleFitView() {
-		console.log('[Zoom] handleFitView called, flowInstance:', !!flowInstance);
 		flowInstance?.fitView?.({ padding: 0.2 });
 	}
 
@@ -443,7 +416,7 @@
 				defaultEdgeOptions={{ type: 'default', animated: true }}
 				snapToGrid={true}
 				snapGrid={[24, 24]}
-				minZoom={0.1}
+				minZoom={0.4}
 				maxZoom={2}
 			>
 				<Background variant={BackgroundVariant?.Dots} gap={24} size={1} />

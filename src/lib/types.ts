@@ -87,17 +87,10 @@ export interface CameraNodeData {
 	depthOfField: 'shallow' | 'deep' | 'medium';
 }
 
-export type GenerationModel = 
-  | 'seedream/4.5-text-to-image' 
-  | 'seedream/4.5-edit' 
-  | 'z-image'
-  | 'flux-2/pro-image-to-image'
-  | 'nano-banana-pro'
+export type GenerationModel =
   | 'nano-banana-2'
-  | 'seedream/5-lite-image-to-image'
   | 'seedream/5-lite-text-to-image'
-  | 'grok-imagine/image-to-image'
-  | 'gpt-image/1.5-image-to-image'
+  | 'seedream/5-lite-image-to-image'
   | 'qwen2/text-to-image'
   | 'qwen2/image-edit';
 
@@ -610,8 +603,8 @@ export const DEFAULT_NODE_DATA: Record<NodeType, PromptNodeData> = {
 	},
 	quality: {
 		type: 'quality',
-		model: 'seedream/4.5-text-to-image',
-		models: ['seedream/4.5-text-to-image'],
+		model: 'nano-banana-2',
+		models: ['nano-banana-2'],
 		aspectRatio: '1:1',
 		quality: 'basic'
 	},

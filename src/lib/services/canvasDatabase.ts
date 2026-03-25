@@ -35,7 +35,6 @@ export async function saveCanvas(
   canvasId?: string
 ): Promise<string | null> {
   if (!isSupabaseConfigured) {
-    console.log('[Canvas DB] Supabase not configured, skipping save');
     return null;
   }
 
@@ -57,7 +56,6 @@ export async function saveCanvas(
         return null;
       }
 
-      console.log('[Canvas DB] Canvas updated:', canvasId);
       return canvasId;
     } else {
       // Insert new canvas
@@ -77,7 +75,6 @@ export async function saveCanvas(
         return null;
       }
 
-      console.log('[Canvas DB] Canvas saved:', data.id);
       return data.id;
     }
   } catch (error) {
@@ -112,33 +109,21 @@ export async function loadCanvas(canvasId: string): Promise<DbCanvas | null> {
 }
 
 /**
- * Load user's most recent canvas (or default)
+ * Load user's most recent canvas (or default).
+ * Single query: defaults sort first, then by updated_at.
  */
 export async function loadLatestCanvas(userId: string): Promise<DbCanvas | null> {
   if (!isSupabaseConfigured) return null;
 
   try {
-    // First try to find default canvas
-    let { data, error } = await supabase
+    const { data, error } = await supabase
       .from('canvases')
       .select('*')
       .eq('user_id', userId)
-      .eq('is_default', true)
+      .order('is_default', { ascending: false })
+      .order('updated_at', { ascending: false })
+      .limit(1)
       .single();
-
-    // If no default, get most recent
-    if (!data || error) {
-      const result = await supabase
-        .from('canvases')
-        .select('*')
-        .eq('user_id', userId)
-        .order('updated_at', { ascending: false })
-        .limit(1)
-        .single();
-      
-      data = result.data;
-      error = result.error;
-    }
 
     if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
       console.error('[Canvas DB] Failed to load latest canvas:', error);
@@ -153,9 +138,9 @@ export async function loadLatestCanvas(userId: string): Promise<DbCanvas | null>
 }
 
 /**
- * List all user's canvases
+ * List user's canvases (paginated)
  */
-export async function listCanvases(userId: string): Promise<CanvasSummary[]> {
+export async function listCanvases(userId: string, limit: number = 50, offset: number = 0): Promise<CanvasSummary[]> {
   if (!isSupabaseConfigured) return [];
 
   try {
@@ -163,7 +148,8 @@ export async function listCanvases(userId: string): Promise<CanvasSummary[]> {
       .from('canvases')
       .select('id, name, nodes, is_default, updated_at')
       .eq('user_id', userId)
-      .order('updated_at', { ascending: false });
+      .order('updated_at', { ascending: false })
+      .range(offset, offset + limit - 1);
 
     if (error) {
       console.error('[Canvas DB] Failed to list canvases:', error);
@@ -200,7 +186,6 @@ export async function deleteCanvas(canvasId: string): Promise<boolean> {
       return false;
     }
 
-    console.log('[Canvas DB] Canvas deleted:', canvasId);
     return true;
   } catch (error) {
     console.error('[Canvas DB] Delete error:', error);

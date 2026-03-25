@@ -526,24 +526,93 @@ select option {
 	background-color: var(--color-bg-canvas) !important;
 }
 
+/* Strip XYFlow's default white node wrapper */
+.svelte-flow__node {
+	background: transparent !important;
+	border: none !important;
+	padding: 0 !important;
+	border-radius: 0 !important;
+	box-shadow: none !important;
+}
+
+/* Strip selected-node outline XYFlow adds */
+.svelte-flow__node.selected,
+.svelte-flow__node:focus,
+.svelte-flow__node:focus-visible {
+	outline: none !important;
+	box-shadow: none !important;
+}
+
+/* ── Edges ───────────────────────────────────── */
 .svelte-flow__edge-path {
-	stroke: var(--color-text-muted);
+	stroke: var(--color-text-secondary);
 	stroke-width: 2;
+}
+
+.svelte-flow__edge.animated .svelte-flow__edge-path {
+	stroke-dasharray: 6 3;
 }
 
 .svelte-flow__edge.selected .svelte-flow__edge-path {
 	stroke: var(--color-node-product);
+	stroke-width: 2.5;
 }
 
+/* Connection line while dragging */
+.svelte-flow__connectionline path {
+	stroke: var(--color-text-primary) !important;
+	stroke-width: 2 !important;
+	fill: none;
+}
+
+/* ── Handles — vertical rectangle tabs ───────── */
 .svelte-flow__handle {
-	width: 12px !important;
-	height: 12px !important;
-	border: 2px solid !important;
-	background-color: var(--color-bg-ui) !important;
+	width: 5px !important;
+	height: 28px !important;
+	border-radius: 3px !important;
+	border: none !important;
+	/* background-color set via inline style in BaseNode */
+	opacity: 0.65;
+	cursor: crosshair !important;
+	transition: opacity 120ms ease, height 120ms ease, box-shadow 120ms ease !important;
 }
 
+/* Left handle: right edge flush with node border, fully outside */
+.svelte-flow__handle-left {
+	border-radius: 3px 0 0 3px !important;
+	transform: translate(-100%, -50%) !important;
+}
+
+/* Right handle: left edge flush with node border, fully outside */
+.svelte-flow__handle-right {
+	border-radius: 0 3px 3px 0 !important;
+	transform: translate(100%, -50%) !important;
+}
+
+/* Hover — taller, fully opaque */
 .svelte-flow__handle:hover {
-	transform: scale(1.3);
+	opacity: 1 !important;
+	height: 36px !important;
+	box-shadow: none !important;
+	/* keep positions locked — no movement */
+	transform: translate(-100%, -50%) !important;
+}
+
+.svelte-flow__handle-right:hover {
+	transform: translate(100%, -50%) !important;
+}
+
+/* While dragging a connection */
+.svelte-flow__handle-connecting {
+	opacity: 1 !important;
+	height: 36px !important;
+}
+
+/* Valid drop target */
+.svelte-flow__handle-valid {
+	opacity: 1 !important;
+	height: 36px !important;
+	box-shadow: 0 0 8px currentColor !important;
 }
 
 .svelte-flow__minimap {

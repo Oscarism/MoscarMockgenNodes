@@ -27,11 +27,11 @@
 	function getModelLabel(modelId: string | undefined): string {
 		if (!modelId) return '';
 		const labels: Record<string, string> = {
-			'seedream/4.5-text-to-image': 'Seedream',
-			'seedream/4.5-edit': 'Edit',
-			'z-image': 'Z-Img',
-			'flux-2/pro-image-to-image': 'Flux I2I',
-			'nano-banana-pro': 'Nano B.'
+			'nano-banana-2': 'Nano B2',
+			'seedream/5-lite-text-to-image': 'SD5 T2I',
+			'seedream/5-lite-image-to-image': 'SD5 I2I',
+			'qwen2/text-to-image': 'Qwen T2I',
+			'qwen2/image-edit': 'Qwen Edit'
 		};
 		return labels[modelId] || modelId;
 	}

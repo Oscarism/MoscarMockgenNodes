@@ -15,7 +15,6 @@
 		// If user is already logged in (page refresh), load their data
 		const currentUser = auth.getUser();
 		if (currentUser) {
-			console.log('[Layout] User already logged in, loading data...');
 			await fetchUserHistory();
 			// Optionally load their canvas too
 			// await loadFromCloud(currentUser.id);

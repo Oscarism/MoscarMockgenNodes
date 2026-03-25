@@ -168,11 +168,9 @@ export function removeEdge(edgeId: string): void {
  * Clear all nodes and edges
  */
 export function clearCanvas(): void {
-  console.log('[Canvas] clearCanvas called - resetting all state');
   nodes.set([]);
   edges.set([]);
   selectedNodeId.set(null);
-  console.log('[Canvas] clearCanvas complete - nodes and edges now empty');
 }
 
 /**
@@ -198,29 +196,48 @@ export const outputNode = derived(nodes, $nodes =>
 );
 
 /**
- * Check if a node is connected to the output
+ * Check if a node is connected to the output.
+ * Memoized: only recomputes BFS when node IDs or edges actually change
+ * (not on every data update).
  */
+let _prevNodeIds = '';
+let _prevEdgeKey = '';
+let _cachedConnected = new Set<string>();
+
 export const connectedToOutput = derived([nodes, edges], ([$nodes, $edges]) => {
+  // Build cheap topology keys
+  const nodeIds = $nodes.map(n => n.id).sort().join(',');
+  const edgeKey = $edges.map(e => `${e.source}-${e.target}`).sort().join(',');
+
+  // Skip BFS if topology unchanged
+  if (nodeIds === _prevNodeIds && edgeKey === _prevEdgeKey) {
+    return _cachedConnected;
+  }
+  _prevNodeIds = nodeIds;
+  _prevEdgeKey = edgeKey;
+
   const output = $nodes.find(n => n.data.type === 'output');
-  if (!output) return new Set<string>();
-  
+  if (!output) {
+    _cachedConnected = new Set<string>();
+    return _cachedConnected;
+  }
+
   // BFS to find all nodes connected to output
   const connected = new Set<string>();
   const queue = [output.id];
-  
+
   while (queue.length > 0) {
     const current = queue.shift()!;
     connected.add(current);
-    
-    // Find nodes that connect TO current node
-    const incomingEdges = $edges.filter(e => e.target === current);
-    for (const edge of incomingEdges) {
-      if (!connected.has(edge.source)) {
+
+    for (const edge of $edges) {
+      if (edge.target === current && !connected.has(edge.source)) {
         queue.push(edge.source);
       }
     }
   }
-  
+
+  _cachedConnected = connected;
   return connected;
 });
 
@@ -345,7 +362,6 @@ export async function loadFromCloud(userId: string): Promise<boolean> {
     currentCanvasName.set(canvas.name);
     selectedNodeId.set(null);
     
-    console.log('[Canvas] Loaded from cloud:', canvas.name);
     toasts.success(`Loaded canvas: ${canvas.name}`);
     return true;
   }

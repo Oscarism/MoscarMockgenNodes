@@ -7,6 +7,26 @@ import type { RequestHandler } from './$types';
 import { createClient } from '@supabase/supabase-js';
 import { PUBLIC_SUPABASE_URL } from '$env/static/public';
 import { SUPABASE_SERVICE_ROLE_KEY } from '$env/static/private';
+import { randomUUID } from 'crypto';
+
+const MAX_IMAGE_SIZE = 10 * 1024 * 1024;  // 10 MB
+const MAX_VIDEO_SIZE = 100 * 1024 * 1024; // 100 MB
+const ALLOWED_TYPES = new Set([
+  'image/png',
+  'image/jpeg',
+  'image/webp',
+  'image/gif',
+  'video/mp4',
+  'video/webm',
+]);
+const TYPE_TO_EXT: Record<string, string> = {
+  'image/png': 'png',
+  'image/jpeg': 'jpg',
+  'image/webp': 'webp',
+  'image/gif': 'gif',
+  'video/mp4': 'mp4',
+  'video/webm': 'webm',
+};
 
 // Create admin client for server-side uploads
 let supabaseAdmin: ReturnType<typeof createClient> | null = null;
@@ -35,14 +55,29 @@ export const POST: RequestHandler = async ({ request }) => {
       return json({ error: 'No file provided' }, { status: 400 });
     }
 
-    console.log(`[Upload] Uploading file: ${file.name}, size: ${file.size}, userId: ${userId || 'anonymous'}`);
+    // --- Validate MIME type ---
+    if (!ALLOWED_TYPES.has(file.type)) {
+      return json(
+        { error: `File type "${file.type}" is not allowed. Accepted: PNG, JPEG, WebP, GIF, MP4, WebM.` },
+        { status: 400 }
+      );
+    }
 
-    // Generate unique filename
-    const timestamp = Date.now();
-    const randomId = Math.random().toString(36).substring(2, 8);
-    const ext = file.name.split('.').pop() || 'jpg';
-    const fileName = `${timestamp}-${randomId}.${ext}`;
-    
+    // --- Validate file size (type-aware) ---
+    const isVideo = file.type.startsWith('video/');
+    const maxSize = isVideo ? MAX_VIDEO_SIZE : MAX_IMAGE_SIZE;
+    if (file.size > maxSize) {
+      const limitMB = maxSize / 1024 / 1024;
+      return json(
+        { error: `File too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Maximum for ${isVideo ? 'video' : 'images'} is ${limitMB} MB.` },
+        { status: 400 }
+      );
+    }
+
+    // Derive extension from validated MIME type (never trust client filename)
+    const ext = TYPE_TO_EXT[file.type] || 'bin';
+    const fileName = `${Date.now()}-${randomUUID()}.${ext}`;
+
     // Path: userId/fileName (for RLS policies)
     const filePath = userId ? `${userId}/${fileName}` : `anonymous/${fileName}`;
 
@@ -51,7 +86,7 @@ export const POST: RequestHandler = async ({ request }) => {
     const buffer = new Uint8Array(arrayBuffer);
 
     // Upload to Supabase Storage
-    const { data, error: uploadError } = await supabaseAdmin.storage
+    const { error: uploadError } = await supabaseAdmin.storage
       .from('uploads')
       .upload(filePath, buffer, {
         contentType: file.type,
@@ -60,15 +95,13 @@ export const POST: RequestHandler = async ({ request }) => {
 
     if (uploadError) {
       console.error('[Upload] Supabase upload error:', uploadError);
-      return json({ error: uploadError.message }, { status: 500 });
+      return json({ error: 'Upload failed. Please try again.' }, { status: 500 });
     }
 
     // Get public URL
     const { data: urlData } = supabaseAdmin.storage
       .from('uploads')
       .getPublicUrl(filePath);
-
-    console.log(`[Upload] Success: ${filePath} -> ${urlData.publicUrl}`);
 
     return json({
       success: true,

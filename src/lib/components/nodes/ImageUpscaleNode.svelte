@@ -185,12 +185,10 @@
 			if ($isLoggedIn && $user) {
 				try {
 					const { saveGeneration, updateGeneration } = await import('$lib/services/database');
-					const dbId = await saveGeneration($user.id, historyRecord);
-					if (dbId) {
-						console.log('[Upscale] Saved to database with ID:', dbId);
+					const result = await saveGeneration($user.id, historyRecord);
+					if (result.data) {
 						// Update with the permanent URL
 						await updateGeneration(upscaleId, 'success', [finalUrl]);
-						console.log('[Upscale] Updated database with permanent URL');
 					}
 				} catch (dbError) {
 					console.error('[Upscale] Failed to save to database:', dbError);

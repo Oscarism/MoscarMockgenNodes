@@ -61,8 +61,7 @@
 		<Handle
 			type="target"
 			position={Position.Left}
-			class="handle-port"
-			style="background-color: var(--color-bg-ui); border-color: {color};"
+			style="background-color: {color};"
 		/>
 	{/if}
 
@@ -140,50 +139,74 @@
 		<Handle
 			type="source"
 			position={Position.Right}
-			class="handle-port"
-			style="background-color: var(--color-bg-ui); border-color: {color};"
+			style="background-color: {color};"
 		/>
 	{/if}
 </div>
 
 <style>
 	.node-wrapper {
-		background-color: var(--color-bg-ui);
+		position: relative;
 		border-radius: var(--radius-lg);
 		min-width: 280px;
 		max-width: 380px;
-		box-shadow: var(--shadow-medium);
-		transition:
-			transform var(--transition-fast),
-			box-shadow var(--transition-fast),
-			border-color var(--transition-normal),
-			opacity var(--transition-fast);
 		animation: nodeEntrance 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
 
-		/* Default: disconnected state */
-		border: 2px dashed var(--node-color);
-		opacity: 0.85;
+		/* Glassmorphism base */
+		background: rgba(28, 28, 28, 0.72);
+		backdrop-filter: blur(14px);
+		-webkit-backdrop-filter: blur(14px);
+		border: 1px solid rgba(255, 255, 255, 0.04);
+
+		/* Disconnected: faint inner glow */
+		box-shadow:
+			inset 0 0 28px color-mix(in srgb, var(--node-color) 8%, transparent),
+			inset 0 0 0 1px color-mix(in srgb, var(--node-color) 14%, transparent),
+			var(--shadow-medium);
+
+		opacity: 0.82;
+		transition:
+			box-shadow var(--transition-normal),
+			opacity var(--transition-fast);
 	}
 
 	.node-wrapper.connected {
-		border-style: solid;
 		opacity: 1;
+		box-shadow:
+			inset 0 0 40px color-mix(in srgb, var(--node-color) 14%, transparent),
+			inset 0 0 0 1px color-mix(in srgb, var(--node-color) 28%, transparent),
+			var(--shadow-medium);
 	}
 
 	.node-wrapper.selected {
+		opacity: 1;
 		box-shadow:
-			0 0 0 2px var(--node-color),
+			inset 0 0 56px color-mix(in srgb, var(--node-color) 22%, transparent),
+			inset 0 0 0 1px color-mix(in srgb, var(--node-color) 50%, transparent),
+			0 0 24px color-mix(in srgb, var(--node-color) 12%, transparent),
 			var(--shadow-strong);
 	}
 
 	.node-wrapper.bypassed {
-		opacity: 0.4;
-		border-style: dotted;
+		opacity: 0.35;
 	}
 
 	.node-wrapper:hover {
-		transform: translateY(-2px);
-		box-shadow: var(--shadow-strong);
+		box-shadow:
+			inset 0 0 40px color-mix(in srgb, var(--node-color) 12%, transparent),
+			inset 0 0 0 1px color-mix(in srgb, var(--node-color) 22%, transparent),
+			var(--shadow-strong);
+	}
+
+	/* Handle glow when node is connected */
+	.node-wrapper.connected :global(.svelte-flow__handle-left) {
+		opacity: 1 !important;
+		box-shadow: -6px 0 12px 1px color-mix(in srgb, var(--node-color) 70%, transparent) !important;
+	}
+
+	.node-wrapper.connected :global(.svelte-flow__handle-right) {
+		opacity: 1 !important;
+		box-shadow: 6px 0 12px 1px color-mix(in srgb, var(--node-color) 70%, transparent) !important;
 	}
 
 	.node-container {
@@ -193,7 +216,7 @@
 
 	.node-header {
 		padding: var(--space-md) var(--space-lg);
-		border-bottom: 1px solid var(--color-bg-canvas);
+		border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 		display: flex;
 		justify-content: space-between;
 		align-items: center;
@@ -260,19 +283,6 @@
 		gap: var(--space-md);
 	}
 
-	/* Handle styling is done via global CSS and inline styles */
-	:global(.handle-port) {
-		width: 18px !important;
-		height: 18px !important;
-		border: 2px solid !important;
-		transition:
-			transform var(--transition-fast),
-			background-color var(--transition-fast);
-	}
-
-	:global(.handle-port:hover) {
-		transform: scale(1.3);
-	}
 
 	@keyframes nodeEntrance {
 		from {

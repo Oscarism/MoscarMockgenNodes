@@ -1,5 +1,6 @@
 <script lang="ts">
 	import BaseNode from './BaseNode.svelte';
+	import NodeField from './NodeField.svelte';
 	import type { ExpressionNodeData } from '$lib/types';
 	import {
 		moodPresets,
@@ -19,87 +20,35 @@
 
 	let { id, data }: Props = $props();
 
-	function handleChange(field: keyof ExpressionNodeData) {
-		return (event: Event) => {
-			const value = (event.target as HTMLSelectElement | HTMLTextAreaElement).value;
-			updateNodeData(id, { [field]: value });
-		};
+	function handleChange(field: string, value: string) {
+		updateNodeData(id, { [field]: value });
 	}
 </script>
 
 <BaseNode {id} nodeType="expression">
 	<div class="row">
-		<div class="field half">
-			<label for="mood-{id}">Mood</label>
-			<select id="mood-{id}" value={data.mood} onchange={handleChange('mood')}>
-				{#each moodPresets as mood}
-					<option value={mood.id}>{mood.label}</option>
-				{/each}
-			</select>
-		</div>
-		<div class="field half">
-			<label for="smile-{id}">Smile</label>
-			<select id="smile-{id}" value={data.smile} onchange={handleChange('smile')}>
-				{#each smilePresets as smile}
-					<option value={smile.id}>{smile.label}</option>
-				{/each}
-			</select>
-		</div>
+		<NodeField {id} label="Mood" field="mood" value={data.mood} options={moodPresets} showAny={false} onchange={handleChange} />
+		<NodeField {id} label="Smile" field="smile" value={data.smile} options={smilePresets} showAny={false} onchange={handleChange} />
 	</div>
 
 	<div class="row">
-		<div class="field half">
-			<label for="eye-{id}">Eye Contact</label>
-			<select id="eye-{id}" value={data.eyeContact} onchange={handleChange('eyeContact')}>
-				{#each eyeContactPresets as eye}
-					<option value={eye.id}>{eye.label}</option>
-				{/each}
-			</select>
-		</div>
-		<div class="field half">
-			<label for="energy-{id}">Energy</label>
-			<select id="energy-{id}" value={data.energy} onchange={handleChange('energy')}>
-				{#each energyPresets as energy}
-					<option value={energy.id}>{energy.label}</option>
-				{/each}
-			</select>
-		</div>
+		<NodeField {id} label="Eye Contact" field="eyeContact" value={data.eyeContact} options={eyeContactPresets} showAny={false} onchange={handleChange} />
+		<NodeField {id} label="Energy" field="energy" value={data.energy} options={energyPresets} showAny={false} onchange={handleChange} />
 	</div>
 
 	<div class="row">
-		<div class="field half">
-			<label for="eyebrows-{id}">Eyebrows</label>
-			<select id="eyebrows-{id}" value={data.eyebrows} onchange={handleChange('eyebrows')}>
-				{#each eyebrowPresets as brow}
-					<option value={brow.id}>{brow.label}</option>
-				{/each}
-			</select>
-		</div>
-		<div class="field half">
-			<label for="mouth-{id}">Mouth</label>
-			<select id="mouth-{id}" value={data.mouthPosition} onchange={handleChange('mouthPosition')}>
-				{#each mouthPresets as mouth}
-					<option value={mouth.id}>{mouth.label}</option>
-				{/each}
-			</select>
-		</div>
+		<NodeField {id} label="Eyebrows" field="eyebrows" value={data.eyebrows} options={eyebrowPresets} showAny={false} onchange={handleChange} />
+		<NodeField {id} label="Mouth" field="mouthPosition" value={data.mouthPosition} options={mouthPresets} showAny={false} onchange={handleChange} />
 	</div>
 
-	<div class="field">
-		<label for="head-{id}">Head Position</label>
-		<select id="head-{id}" value={data.headPosition} onchange={handleChange('headPosition')}>
-			{#each headPositionPresets as head}
-				<option value={head.id}>{head.label}</option>
-			{/each}
-		</select>
-	</div>
+	<NodeField {id} label="Head Position" field="headPosition" value={data.headPosition} options={headPositionPresets} showAny={false} onchange={handleChange} />
 
 	<div class="field">
 		<label for="custom-{id}">Custom Details</label>
 		<textarea
 			id="custom-{id}"
 			value={data.customPrompt || ''}
-			onchange={handleChange('customPrompt')}
+			oninput={(e) => handleChange('customPrompt', (e.target as HTMLTextAreaElement).value)}
 			placeholder="Add specific expression details..."
 			rows="2"
 		></textarea>
@@ -107,6 +56,15 @@
 </BaseNode>
 
 <style>
+	.row {
+		display: flex;
+		gap: var(--space-sm);
+	}
+
+	.row :global(.field) {
+		flex: 1;
+	}
+
 	.field {
 		display: flex;
 		flex-direction: column;
@@ -119,15 +77,6 @@
 		color: var(--color-text-secondary);
 		text-transform: uppercase;
 		letter-spacing: 0.5px;
-	}
-
-	.row {
-		display: flex;
-		gap: var(--space-sm);
-	}
-
-	.half {
-		flex: 1;
 	}
 
 	textarea {

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import BaseNode from './BaseNode.svelte';
+	import NodeField from './NodeField.svelte';
 	import type { CameraNodeData } from '$lib/types';
 	import { cameraAngles, cameraDistances, depthOfFieldOptions } from '$lib/data/presets';
 	import { updateNodeData } from '$lib/stores/canvas';
@@ -11,63 +12,13 @@
 
 	let { id, data }: Props = $props();
 
-	function handleAngleChange(event: Event) {
-		const angle = (event.target as HTMLSelectElement).value;
-		updateNodeData(id, { angle });
-	}
-
-	function handleDistanceChange(event: Event) {
-		const distance = (event.target as HTMLSelectElement).value;
-		updateNodeData(id, { distance });
-	}
-
-	function handleDofChange(event: Event) {
-		const depthOfField = (event.target as HTMLSelectElement)
-			.value as CameraNodeData['depthOfField'];
-		updateNodeData(id, { depthOfField });
+	function handleChange(field: string, value: string) {
+		updateNodeData(id, { [field]: value });
 	}
 </script>
 
 <BaseNode {id} nodeType="camera">
-	<div class="field">
-		<label for="angle-{id}">Angle</label>
-		<select id="angle-{id}" value={data.angle} onchange={handleAngleChange}>
-			{#each cameraAngles as angle}
-				<option value={angle.id}>{angle.label}</option>
-			{/each}
-		</select>
-	</div>
-
-	<div class="field">
-		<label for="distance-{id}">Distance</label>
-		<select id="distance-{id}" value={data.distance} onchange={handleDistanceChange}>
-			{#each cameraDistances as distance}
-				<option value={distance.id}>{distance.label}</option>
-			{/each}
-		</select>
-	</div>
-
-	<div class="field">
-		<label for="dof-{id}">Depth of Field</label>
-		<select id="dof-{id}" value={data.depthOfField} onchange={handleDofChange}>
-			{#each depthOfFieldOptions as dof}
-				<option value={dof.id}>{dof.label}</option>
-			{/each}
-		</select>
-	</div>
+	<NodeField {id} label="Angle" field="angle" value={data.angle} options={cameraAngles} showAny={false} onchange={handleChange} />
+	<NodeField {id} label="Distance" field="distance" value={data.distance} options={cameraDistances} showAny={false} onchange={handleChange} />
+	<NodeField {id} label="Depth of Field" field="depthOfField" value={data.depthOfField} options={depthOfFieldOptions} showAny={false} onchange={handleChange} />
 </BaseNode>
-
-<style>
-	.field {
-		display: flex;
-		flex-direction: column;
-		gap: var(--space-tiny);
-	}
-
-	.field label {
-		font-size: var(--text-xs);
-		color: var(--color-text-secondary);
-		text-transform: uppercase;
-		letter-spacing: 0.5px;
-	}
-</style>

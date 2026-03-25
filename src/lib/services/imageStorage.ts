@@ -6,46 +6,32 @@
 import { supabase, isSupabaseConfigured } from '$lib/supabase';
 
 const BUCKET_NAME = 'generations';
+const MAX_CONCURRENT = 4;
 
 /**
- * Upload an image from a temporary URL to Supabase Storage
- * Images are stored in user-specific folders: {userId}/{timestamp}_{random}.webp
- * 
- * @param tempUrl - The temporary URL from Kie AI
- * @param userId - The authenticated user's ID
- * @returns The permanent public URL from Supabase Storage (or original URL on failure)
+ * Upload an image from a temporary URL to Supabase Storage.
+ * Falls back to the temp URL on failure (with console.error).
  */
 export async function uploadToSupabaseStorage(
   tempUrl: string,
   userId: string
 ): Promise<string> {
   if (!isSupabaseConfigured) {
-    console.log('[ImageStorage] Supabase not configured, returning original URL');
-    return tempUrl; // Fallback to temp URL
+    return tempUrl;
   }
 
   try {
-    console.log(`[ImageStorage] Downloading image from: ${tempUrl.substring(0, 50)}...`);
-    
-    // Download the image from the temp URL
     const response = await fetch(tempUrl);
     if (!response.ok) {
-      console.error(`[ImageStorage] Failed to download image: ${response.status}`);
-      return tempUrl; // Fallback to temp URL
+      console.error('[ImageStorage] Failed to download temp image:', response.status);
+      return tempUrl;
     }
 
     const blob = await response.blob();
-    
-    // Generate unique filename with user folder
-    const timestamp = Date.now();
-    const randomId = Math.random().toString(36).substring(2, 10);
-    const extension = tempUrl.includes('.png') ? 'png' : 'webp';
-    const filePath = `${userId}/${timestamp}_${randomId}.${extension}`;
+    const ext = blob.type === 'image/png' ? 'png' : 'webp';
+    const filePath = `${userId}/${Date.now()}_${crypto.randomUUID()}.${ext}`;
 
-    console.log(`[ImageStorage] Uploading to: ${filePath}`);
-
-    // Upload to Supabase Storage
-    const { data, error } = await supabase.storage
+    const { error } = await supabase.storage
       .from(BUCKET_NAME)
       .upload(filePath, blob, {
         contentType: blob.type || 'image/webp',
@@ -54,46 +40,42 @@ export async function uploadToSupabaseStorage(
 
     if (error) {
       console.error('[ImageStorage] Upload failed:', error.message);
-      return tempUrl; // Fallback to temp URL
+      return tempUrl;
     }
 
-    // Get public URL
     const { data: urlData } = supabase.storage
       .from(BUCKET_NAME)
       .getPublicUrl(filePath);
 
-    console.log(`[ImageStorage] Uploaded successfully: ${urlData.publicUrl}`);
     return urlData.publicUrl;
-
   } catch (error) {
     console.error('[ImageStorage] Error:', error);
-    return tempUrl; // Fallback to temp URL on any error
+    return tempUrl;
   }
 }
 
 /**
- * Upload multiple images to Supabase Storage
- * Processes images in parallel for speed
- * 
- * @param tempUrls - Array of temporary URLs from Kie AI
- * @param userId - The authenticated user's ID
- * @returns Array of permanent URLs (some may be original temp URLs on failure)
+ * Upload multiple images with bounded concurrency (max 4 at a time)
  */
 export async function uploadMultipleToStorage(
   tempUrls: string[],
   userId: string
 ): Promise<string[]> {
   if (!isSupabaseConfigured || !userId) {
-    console.log('[ImageStorage] Returning original URLs (no Supabase or no user)');
     return tempUrls;
   }
 
-  console.log(`[ImageStorage] Uploading ${tempUrls.length} images for user ${userId}`);
-  
-  // Upload all images in parallel
-  const uploadPromises = tempUrls.map(url => uploadToSupabaseStorage(url, userId));
-  const results = await Promise.all(uploadPromises);
-  
-  console.log(`[ImageStorage] Completed uploading ${results.length} images`);
+  const results: string[] = new Array(tempUrls.length);
+
+  for (let i = 0; i < tempUrls.length; i += MAX_CONCURRENT) {
+    const batch = tempUrls.slice(i, i + MAX_CONCURRENT);
+    const batchResults = await Promise.all(
+      batch.map(url => uploadToSupabaseStorage(url, userId))
+    );
+    for (let j = 0; j < batchResults.length; j++) {
+      results[i + j] = batchResults[j];
+    }
+  }
+
   return results;
 }

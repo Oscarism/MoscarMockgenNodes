@@ -31,11 +31,16 @@ function createToastStore() {
     
     update(toasts => [...toasts, { id, type, message, duration, progress }]);
     
-    // Auto-remove after duration (not for progress toasts unless specified)
-    if (duration > 0 && type !== 'progress') {
+    // Auto-remove after duration
+    if (duration > 0) {
       setTimeout(() => {
         removeToast(id);
       }, duration);
+    } else if (type === 'progress') {
+      // Safety net: progress toasts auto-remove after 60s even if never dismissed
+      setTimeout(() => {
+        removeToast(id);
+      }, 60000);
     }
     
     return id;

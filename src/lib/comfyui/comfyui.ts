@@ -16,11 +16,7 @@ export interface UpscaleResult {
 
 // Generate a unique client ID for WebSocket
 function generateClientId(): string {
-	return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-		const r = (Math.random() * 16) | 0;
-		const v = c === 'x' ? r : (r & 0x3) | 0x8;
-		return v.toString(16);
-	});
+	return crypto.randomUUID();
 }
 
 // Upload image to ComfyUI via proxy
@@ -41,7 +37,6 @@ export async function uploadImageToComfy(file: File): Promise<{ name: string; su
 	}
 
 	const result = await response.json();
-	console.log('[ComfyUI] Upload success:', result.name);
 	return { name: result.name, subfolder: result.subfolder || '' };
 }
 
@@ -149,8 +144,6 @@ export async function upscaleImage(
 		}
 
 		const { prompt_id } = await queueResponse.json();
-		console.log('[ComfyUI] Prompt queued:', prompt_id);
-
 		// Connect to WebSocket and wait for completion
 		onProgress?.('Processing...', 10);
 		const resultFilename = await waitForCompletion(clientId, prompt_id, onProgress);
@@ -158,8 +151,6 @@ export async function upscaleImage(
 		// Return the result image URL - use PROXY to avoid CORS
 		// The proxy URL will be used by getImageBlobUrl which also uses the proxy
 		const imageUrl = `/api/comfyui/view?filename=${encodeURIComponent(resultFilename)}&type=output`;
-		console.log('[ComfyUI] Result URL (proxy):', imageUrl);
-
 		return {
 			success: true,
 			imageUrl
@@ -189,7 +180,6 @@ function waitForCompletion(
 		}, 300000);
 
 		ws.onopen = () => {
-			console.log('[ComfyUI] WebSocket connected');
 		};
 
 		ws.onmessage = (event) => {
@@ -205,7 +195,6 @@ function waitForCompletion(
 				if (message.type === 'executing') {
 					if (message.data.node === null && message.data.prompt_id === promptId) {
 						// Execution complete, fetch the result
-						console.log('[ComfyUI] Execution complete');
 						clearTimeout(timeout);
 						onProgress?.('Fetching result...', 99);
 						fetchOutputImage(promptId)
@@ -243,16 +232,17 @@ function waitForCompletion(
 	});
 }
 
-// Fetch the output image filename from history via proxy (with retries)
+// Fetch the output image filename from history via proxy (with exponential backoff)
 async function fetchOutputImage(promptId: string): Promise<string> {
 	const maxRetries = 10;
-	const retryDelay = 1000; // 1 second between retries
+	let delay = 500; // Start at 500ms, will grow exponentially
 
 	for (let attempt = 0; attempt < maxRetries; attempt++) {
 		try {
-			// Wait a bit before fetching (history may not be immediately available)
+			// Wait before fetching (history may not be immediately available)
 			if (attempt > 0) {
-				await new Promise((resolve) => setTimeout(resolve, retryDelay));
+				await new Promise((resolve) => setTimeout(resolve, delay));
+				delay = Math.min(delay * 2, 8000); // Exponential backoff, cap at 8s
 			}
 
 			const response = await fetch(`/api/comfyui/history/${promptId}`);
@@ -263,12 +253,9 @@ async function fetchOutputImage(promptId: string): Promise<string> {
 			}
 
 			const history = await response.json();
-			console.log('[ComfyUI] History response:', history);
-
 			const outputs = history[promptId]?.outputs;
 
 			if (!outputs) {
-				console.log(`[ComfyUI] Attempt ${attempt + 1}: No outputs yet, retrying...`);
 				continue;
 			}
 
@@ -276,12 +263,10 @@ async function fetchOutputImage(promptId: string): Promise<string> {
 			for (const nodeId of Object.keys(outputs)) {
 				const nodeOutput = outputs[nodeId];
 				if (nodeOutput.images && nodeOutput.images.length > 0) {
-					console.log('[ComfyUI] Found output image:', nodeOutput.images[0]);
 					return nodeOutput.images[0].filename;
 				}
 			}
 
-			console.log(`[ComfyUI] Attempt ${attempt + 1}: No images in outputs, retrying...`);
 		} catch (error) {
 			console.error(`[ComfyUI] Attempt ${attempt + 1} failed:`, error);
 		}
@@ -301,7 +286,6 @@ export async function getImageBlobUrl(url: string): Promise<string> {
 		fetchUrl = `/api/comfyui/view?filename=${encodeURIComponent(filename || '')}&type=${type}`;
 	}
 	
-	console.log('[ComfyUI] Fetching image via proxy:', fetchUrl);
 	const response = await fetch(fetchUrl);
 
 	if (!response.ok) {
@@ -310,8 +294,6 @@ export async function getImageBlobUrl(url: string): Promise<string> {
 	}
 
 	const blob = await response.blob();
-	console.log('[ComfyUI] Image blob size:', blob.size, 'type:', blob.type);
-
 	if (blob.size === 0) {
 		throw new Error('Received empty image');
 	}
